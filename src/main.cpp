@@ -11,7 +11,7 @@ const char *ssid = "D-Link-2BE3C3";  // Enter your Wi-Fi name
 const char *password = "K3RazVjHpN"; // Enter Wi-Fi password
 
 // MQTT Broker
-const char *mqtt_broker = "192.168.1.158";
+const char *mqtt_broker = "mqtt.darioschiavano.it";
 const char *topic = "emqx/esp32";
 // const char *mqtt_username = "emqx";
 // const char *mqtt_password = "public";
