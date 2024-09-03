@@ -1,35 +1,60 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
-
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <Preferences.h>
+#include <Arduino.h>
+#if defined(ESP32)
+#include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
 
-// WiFi
+#include <ESP_Mail_Client.h>
+
+#pragma region WiFi_settings
 const char *ssid = "D-Link-2BE3C3";  // Enter your Wi-Fi name
 const char *password = "K3RazVjHpN"; // Enter Wi-Fi password
+#pragma endregion WiFi_settings
 
-// MQTT Broker
+#pragma region MQTT_Broker
 const char *mqtt_broker = "mqtt.darioschiavano.it";
 const char *topic = "emqx/esp32";
+
+// credentials for the MQTT broker
 // const char *mqtt_username = "emqx";
 // const char *mqtt_password = "public";
-const int mqtt_port = 1883;
+
+const int mqtt_port = 1883; // default port for MQTT
+#pragma endregion MQTT_Broker
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-long lastMsg = 0;
-char msg[50];
-int value = 0;
 
-int suolo, percentuale;
+#pragma region setup_variables
+long lastMsg = 0; // last time a message was sent to the broker
+char msg[50];     // message to send to the broker
+int value = 0;    // value to send to the broker
+
+// Adafruit_BME280 bme(BME_CS); // hardware SPI
+// Adafruit_BME280 bme(BME_CS, BME_MOSI, BME_MISO, BME_SCK); // software SPI
+
+float temperature = 0; // initialize temperature
+long humidity = 0;     // initialize humidity
+
+// LED Pin
+const int ledPin = 4;
+
+int soil, percentage; // soil, percentage
 String stringa = "";
 
-const int AirValue = 520;   // you need to replace this valuewith Value_1
-const int WaterValue = 260; // you need to replace this valuewith Value_2
+const int AirValue = 520;   // you need to replace this value with Value_1
+const int WaterValue = 260; // you need to replace this value with Value_2
 int intervals = (AirValue - WaterValue) / 3;
 int soilMoistureValue = 0;
+#pragma endregion setup_variables
 
 // uncomment the following lines if you're using SPI
 /*#include <SPI.h>
@@ -42,40 +67,82 @@ int soilMoistureValue = 0;
 // Adafruit_BME280 bme; // I2C
 // end comment
 
-// Adafruit_BME280 bme(BME_CS); // hardware SPI
-// Adafruit_BME280 bme(BME_CS, BME_MOSI, BME_MISO, BME_SCK); // software SPI
-float temperature = 0;
-long humidity = 0;
+// enter in sleep mode for 5 seconds and wake up by timer
+#define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
+#define TIME_TO_SLEEP 600      /* Time ESP32 will go to sleep (in seconds) */
 
-// LED Pin
-const int ledPin = 4;
+// RTC_DATA_ATTR is a variable that is stored in RTC memory and will be retained after deep sleep
+RTC_DATA_ATTR int bootCount = 0; // count the number of boot
 
-// comment by me
+// Preferences object, used to store data in RTC memory
+Preferences preferences;
+
+#pragma region SMTP_settings
+
+/** The smtp host name e.g. smtp.gmail.com for GMail or smtp.office365.com for Outlook or smtp.mail.yahoo.com */
+#define SMTP_HOST "smtp.gmail.com"
+#define SMTP_PORT 465
+
+/* The sign in credentials */
+#define AUTHOR_EMAIL "YOUR_EMAIL@XXXX.com"
+#define AUTHOR_PASSWORD "YOUR_EMAIL_APP_PASS"
+
+/* Recipient's email*/
+#define RECIPIENT_EMAIL "RECIPIENTE_EMAIL@XXXX.com"
+
+/* Declare the global used SMTPSession object for SMTP transport */
+SMTPSession smtp;
+
+/* Callback function to get the Email sending status */
+void smtpCallback(SMTP_Status status);
+
+#pragma endregion SMTP_settings
+
+/*
+Method to print the reason by which ESP32
+has been awaken from sleep
+*/
+void print_wakeup_reason()
+{
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch (wakeup_reason)
+  {
+  case ESP_SLEEP_WAKEUP_EXT0:
+    Serial.println("Wakeup caused by external signal using RTC_IO");
+    break;
+  case ESP_SLEEP_WAKEUP_EXT1:
+    Serial.println("Wakeup caused by external signal using RTC_CNTL");
+    break;
+  case ESP_SLEEP_WAKEUP_TIMER:
+    Serial.println("Wakeup caused by timer");
+    break;
+  case ESP_SLEEP_WAKEUP_TOUCHPAD:
+    Serial.println("Wakeup caused by touchpad");
+    break;
+  case ESP_SLEEP_WAKEUP_ULP:
+    Serial.println("Wakeup caused by ULP program");
+    break;
+  default:
+    Serial.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason);
+    break;
+  }
+}
+
+// function to read the soil moisture value and return the percentage
 long igro()
 {
-  suolo = analogRead(A0);
-
-  soilMoistureValue = analogRead(A0);
-  if (soilMoistureValue > WaterValue && soilMoistureValue < (WaterValue + intervals))
-  {
-    Serial.println("VeryWet");
-  }
-  else if (soilMoistureValue > (WaterValue + intervals) && soilMoistureValue < (AirValue - intervals))
-  {
-    Serial.println("Wet");
-  }
-  else if (soilMoistureValue < AirValue && soilMoistureValue > (AirValue - intervals))
-  {
-    Serial.println("Dry");
-  }
-
-  percentuale = map(suolo, 4095, 0, 0, 100);
+  soil = analogRead(A0);
+  percentage = map(soil, 4095, 0, 0, 100);
   Serial.print("Valore misurato: ");
-  Serial.println(suolo);
+  Serial.println(soil);
   Serial.println("Valore convertito: ");
-  Serial.println(percentuale);
-  if (percentuale < 20)
+  Serial.println(percentage);
+  if (percentage < 20)
   {
+    Serial.println("Turn on the irrigation pump");
     // todo: insert write message for need turn on the irrigation pump
   }
 
@@ -86,12 +153,12 @@ long igro()
     display.setTextSize(1);
     display.setTextColor(1);
     display.setCursor(0, 0);
-    display.println("Umidita' suolo:");
+    display.println("Umidita' soil:");
 
     display.setTextSize(2);
     display.setTextColor(1,0);
     display.setCursor(0, 15);
-    display.println(percentuale);
+    display.println(percentage);
 
     display.setTextSize(2);
     display.setTextColor(1);
@@ -101,7 +168,7 @@ long igro()
     display.display();
     */
 
-  return percentuale;
+  return percentage;
 }
 
 void callback(char *topic, byte *message, unsigned int length)
@@ -138,6 +205,9 @@ void callback(char *topic, byte *message, unsigned int length)
   }
 }
 
+/**
+ * Connect to the Wi-Fi network
+ */
 void setup_wifi()
 {
   delay(10);
@@ -153,21 +223,7 @@ void setup_wifi()
     delay(500);
     Serial.print(".");
   }
-
-  // setup OTA (Over-The-Air)
-  // Port defaults to 3232
-  // ArduinoOTA.setPort(3232);
-
-  // Hostname defaults to esp3232-[MAC]
-  // ArduinoOTA.setHostname("myesp32");
-
-  // No authentication by default
-  // ArduinoOTA.setPassword("admin");
-
-  // Password can be set with it's md5 value as well
-  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
-  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
-
+  // Print local IP address and start web server
   ArduinoOTA
       .onStart([]()
                {
@@ -200,33 +256,18 @@ void setup_wifi()
   Serial.println(WiFi.localIP());
 }
 
+/**
+ * Setup system
+ */
 void setup()
 {
   // Set software serial baud to 115200;
   Serial.begin(115200);
-  // default settings
-  // (you can also pass in a Wire library object like &Wire2)
-  // status = bme.begin();
 
-  // comment by me
-  // if (!bme.begin(0x76)) {
-  //   Serial.println("Could not find a valid BME280 sensor, check wiring!");
-  //   while (1);
-  // }
+  delay(1000); // Take some time to open up the Serial Monitor
+
   setup_wifi();
-  // client.setServer(mqtt_server, 1883);
-  // client.setCallback(callback);
-  // pinMode(ledPin, OUTPUT);
-
-  /*
-  // Connecting to a WiFi network
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.println("Connecting to WiFi..");
-  }
-  Serial.println("Connected to the Wi-Fi network");
-*/
+  pinMode(ledPin, OUTPUT);
 
   // connecting to a mqtt broker
   client.setServer(mqtt_broker, mqtt_port);
@@ -247,13 +288,49 @@ void setup()
       delay(2000);
     }
   }
+
+  // set the soil moisture value on RTC memory
+  soilMoistureValue = percentage;
+  preferences.begin("esp32", false);
+  preferences.putUInt("soilMoistureValue", soilMoistureValue);
+  preferences.end();
+
   // Publish and subscribe
   client.publish(topic, "Hi, I'm AZ-DELIVERY ESP32");
   client.subscribe(topic);
+
+  // Increment boot number and print it every reboot
+  ++bootCount;
+  Serial.print("Boot number: ");
+  Serial.println(bootCount);
+
+  // Print the wakeup reason for ESP32
+  print_wakeup_reason();
+
+  /*
+  First we configure the wake up source
+  We set our ESP32 to wake up every 5 seconds
+  */
+  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+  Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
+
+  Serial.flush();
+
+  /*
+   Now that we have setup a wake cause and if needed setup the
+   peripherals state in deep sleep, we can now start going to
+   deep sleep.
+   In the case that no wake up sources were provided but deep
+   sleep was started, it will sleep forever unless hardware
+   reset occurs.
+   */
+  Serial.println("Going to sleep now");
+  esp_deep_sleep_start();
 }
 
 void reconnect()
 {
+  Serial.println("Attempting WiFi connection...");
   // Loop until we're reconnected
   while (!client.connected())
   {
@@ -289,35 +366,26 @@ void loop()
   if (now - lastMsg > 1000)
   {
     lastMsg = now;
-
-    // Temperature in Celsius
-
-    // commented by me
-    // temperature = bme.readTemperature();
-
-    temperature = random(0, 99);
-
-    // Uncomment the next line to set temperature in Fahrenheit
-    // (and comment the previous temperature line)
-    // temperature = 1.8 * bme.readTemperature() + 32; // Temperature in Fahrenheit
-
-    // Convert the value to a char array
-    char tempString[8];
-    dtostrf(temperature, 1, 2, tempString);
-    Serial.print("Temperature: ");
-    Serial.println(tempString);
-    client.publish("esp32/temperature", tempString);
-
-    // commented by me
-    // humidity = bme.readHumidity();
-
     humidity = igro();
+
+    // set the soil moisture value on RTC memory
+    preferences.begin("esp32", false);
+    soilMoistureValue = preferences.getUInt("soilMoistureValue", 0);
+    // if the soil moisture value is different of 1% from the saved value, then update the value
+    if (abs(soilMoistureValue - percentage) > 1)
+    {
+      Serial.println("Updating soil moisture value");
+      preferences.putUInt("soilMoistureValue", percentage);
+      preferences.end();
+    }
 
     // Convert the value to a char array
     char humString[8];
     dtostrf(humidity, 1, 2, humString);
     Serial.print("Humidity: ");
     Serial.println(humString);
+
+    // Publish the value to the broker
     client.publish("esp32/humidity", humString);
   }
 }

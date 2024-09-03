@@ -201,4 +201,63 @@
  /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src/ArduinoOTA.h \
  /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/Update/src/Update.h \
  /Users/amministratore/.platformio/packages/framework-arduinoespressif32/cores/esp32/MD5Builder.h \
- /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_rom/include/esp_rom_md5.h
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_rom/include/esp_rom_md5.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/ESP_Mail_Client.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/extras/RFC2047.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./ESP_Mail_FS.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./extras/MB_MCU.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/LittleFS/src/LittleFS.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/FS/src/FS.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/SD/src/SD.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/SPI/src/SPI.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-spi.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/SD/src/sd_defines.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./extras/Build_Options.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./extras/MB_FS.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./extras/MB_FS_Interfaces.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./extras/MB_String.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./extras/Networks.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/Ethernet/src/ETH.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/ESP_Mail_Const.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/ESP_Mail_Error.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/extras/MB_FS.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./extras/Networks.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/extras/MB_Time.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./extras/MB_String.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/ESP_Mail_TCPClient.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/sockets.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include/sys/poll.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/netif.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/pbuf.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/stats.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/mem.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/memp.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/priv/memp_std.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/priv/memp_priv.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/priv/mem_priv.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/inet.h \
+ /Users/amministratore/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/errno.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/WiFiClientImpl.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/ESP_SSLClient.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/ESP_SSLClient_FS.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/Custom_ESP_SSLClient_FS.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/ESP_SSLClient_Const.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/BSSL_TCP_Client.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../ESP_SSLClient_Const.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/BSSL_SSL_Client.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/BSSL_Helper.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_hash.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_hmac.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_kdf.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_rand.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_block.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_prf.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_aead.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_rsa.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_ec.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_ssl.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_x509.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/../bssl/bearssl_pem.h \
+ .pio/libdeps/esp32doit-devkit-v1/ESP\ Mail\ Client/src/./client/SSLClient/client/BSSL_CertStore.h

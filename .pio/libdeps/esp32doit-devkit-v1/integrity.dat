@@ -1,6 +1,7 @@
-WiFi
 Wire
 PubSubClient
-ESPmDNS
-ArduinoOTA
 WifiUdp
+ArduinoOTA
+ESPmDNS
+WiFi
+mobizt/ESP Mail Client @ ^3.4.21
