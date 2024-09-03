@@ -389,3 +389,5 @@ void loop()
     client.publish("esp32/humidity", humString);
   }
 }
+
+
