@@ -50,19 +50,19 @@ SMTP_Message message;
 Session_Config config;
 
 #pragma region setup_variables
-int value_ref = 20; // reference value for the soil moisture
-long lastMsg = 0; // last time a message was sent to the broker
-char msg[50];     // message to send to the broker
-int value = 0;    // value to send to the broker
 
-// Adafruit_BME280 bme(BME_CS); // hardware SPI
-// Adafruit_BME280 bme(BME_CS, BME_MOSI, BME_MISO, BME_SCK); // software SPI
+const bool debug = true; // debug mode, if true the ESP32 will not go to sleep and will not send an email
+const int value_ref = 20; // reference value for the soil moisture
 
-// float temperature = 0; // initialize temperature
+// long lastMsg = 0; // last time a message was sent to the broker
+// char msg[50];     // message to send to the broker
+// int value = 0;    // value to send to the broker
+
 long humidity = 0; // initialize humidity
 
-// LED Pin
-const int ledPin = 4;
+const int ledPin = 4;     // LED Pin
+const int sensorPin = 32; // Sensor Pin for the water level -- input
+const int pumpPin = 33;   // Pump Pin -- output
 
 int soil, percentage; // soil, percentage
 String stringa = "";
@@ -70,20 +70,9 @@ String stringa = "";
 int soilMoistureValue = 0;
 #pragma endregion setup_variables
 
-// uncomment the following lines if you're using SPI
-/*#include <SPI.h>
-#define BME_SCK 18
-#define BME_MISO 19
-#define BME_MOSI 23
-#define BME_CS 5*/
-
-// comment by me
-// Adafruit_BME280 bme; // I2C
-// end comment
-
 // enter in sleep mode for 5 seconds and wake up by timer
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 3600       /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP 3600     /* Time ESP32 will go to sleep (in seconds) */
 
 // RTC_DATA_ATTR is a variable that is stored in RTC memory and will be retained after deep sleep
 RTC_DATA_ATTR int bootCount = 0; // count the number of boot
@@ -182,7 +171,7 @@ void print_wakeup_reason()
 long igro()
 {
   soil = analogRead(A0);
-  percentage = map(soil, 4095, 0, 0, 100);
+  percentage = map(soil, 4095, 0, 0, 100); // map the value from 0 to 100
   Serial.print("Valore misurato: ");
   Serial.println(soil);
   Serial.println("Valore convertito: ");
@@ -217,7 +206,7 @@ void check_update_soil(int valueSoil)
 {
   // set the soil moisture value on RTC memory
   preferences.begin("esp32", false);
-  soilMoistureValue = preferences.getUInt("soilValue", 0);
+  soilMoistureValue = preferences.getUInt("soilValue", 0); // get the value of the soil moisture saved in RTC memory
   // if the soil moisture value is different of 1% from the saved value, then update the value
   if (abs(soilMoistureValue - valueSoil) > 1)
   {
@@ -265,6 +254,49 @@ void callback(char *topic, byte *message, unsigned int length)
       Serial.println("off");
       // digitalWrite(ledPin, LOW);
     }
+  }
+}
+
+/**
+ * turn on the pump for 3 seconds or while the soil moisture is less than 20%
+ */
+void turnOnPump(int timeOn = NULL)
+{
+  Serial.println("Turning on the pump");
+  // turn on the pump
+  digitalWrite(pumpPin, HIGH);
+  if (timeOn == NULL)
+  {
+    timeOn = 3;
+  }
+  delay(timeOn * 1000); // turn on the pump for 3 seconds
+  Serial.println("Pump is on, waiting for");
+  Serial.print(timeOn);
+  Serial.print(" seconds\n");
+  digitalWrite(pumpPin, LOW);
+}
+
+/**
+ * check the water level and return true if the water level is ok, otherwise return false
+ */
+bool check_water_level()
+{
+  // int waterLevel = digitalRead(sensorPin);
+  int waterLevel = analogRead(A6);
+  Serial.println("Water level read: ");
+  Serial.println(waterLevel);
+  int waterLevelPercentage = map(waterLevel, 4095, 0, 0, 100);
+  Serial.println("Water level percentage: ");
+  Serial.println(waterLevelPercentage);
+  if (waterLevel == HIGH)
+  {
+    Serial.println("Water level is ok");
+    return true;
+  }
+  else
+  {
+    Serial.println("Water level is low");
+    return false;
   }
 }
 
@@ -320,7 +352,7 @@ void setup_wifi()
   Serial.println(WiFi.localIP());
 }
 
-void setup_mail()
+void setup_mail(const char *textMessage = NULL)
 {
   // setup the mail client
 
@@ -363,10 +395,15 @@ void setup_mail()
   message.addRecipient(F("Dario"), RECIPIENT_EMAIL);
 
   uint lastValueSaved = preferences.getUInt("soilValue", 0);
-
-  /*Send HTML message*/
   String htmlMsg = "<div style=\"color:#2f4468;\"><h1>Promemoria, ricordati di innaffiare il bonsai!</h1><p>- Sent from Igrometer ESP32 board</p></div>";
-  message.html.content = htmlMsg.c_str();
+
+  if (textMessage != NULL)
+  {
+    htmlMsg = "<div style=\"color:#2f4468;\"><h1>";
+    htmlMsg += textMessage;
+    htmlMsg += "</h1><p>- Sent from Igrometer ESP32 board</p></div>";
+  }
+
   message.html.content = htmlMsg.c_str();
   message.text.charSet = "us-ascii";
   message.html.transfer_encoding = Content_Transfer_Encoding::enc_7bit;
@@ -414,6 +451,8 @@ void setup()
   delay(1000); // Take some time to open up the Serial Monitor
 
   pinMode(ledPin, OUTPUT);
+  pinMode(sensorPin, INPUT);
+  pinMode(pumpPin, OUTPUT);
 
   // // connecting to a mqtt broker
   // client.setServer(mqtt_broker, mqtt_port);
@@ -469,9 +508,25 @@ void setup()
     Serial.println("Soil moisture is more than 20%, sending an email to the user");
     setup_wifi();
     setup_mail();
-    // send an mail to the user
-    if (!MailClient.sendMail(&smtp, &message))
-      ESP_MAIL_PRINTF("Error, Status Code: %d, Error Code: %d, Reason: %s", smtp.statusCode(), smtp.errorCode(), smtp.errorReason().c_str());
+
+    // // send an mail to the user
+    // if (!MailClient.sendMail(&smtp, &message))
+    //   ESP_MAIL_PRINTF("Error, Status Code: %d, Error Code: %d, Reason: %s", smtp.statusCode(), smtp.errorCode(), smtp.errorReason().c_str());
+
+    // turn on the pump for 3 seconds
+    if (check_water_level())
+      turnOnPump(); // check the water level and turn on the pump if the water level is ok
+    else
+    {
+      String textMessage = "Water level is low, I prefer to not turn on the pump for security reasons";
+      Serial.println(textMessage);
+      setup_mail(textMessage.c_str());
+      if (!debug)
+      {
+        if (!MailClient.sendMail(&smtp, &message))
+          ESP_MAIL_PRINTF("Error, Status Code: %d, Error Code: %d, Reason: %s", smtp.statusCode(), smtp.errorCode(), smtp.errorReason().c_str());
+      }
+    }
   }
   else
   {
@@ -487,42 +542,21 @@ void setup()
 
   Serial.flush();
 
-  /*
-   Now that we have setup a wake cause and if needed setup the
-   peripherals state in deep sleep, we can now start going to
-   deep sleep.
-   In the case that no wake up sources were provided but deep
-   sleep was started, it will sleep forever unless hardware
-   reset occurs.
-   */
-  Serial.println("Going to sleep now");
-  esp_deep_sleep_start();
-}
+  if (!debug)
+  {
+    /*
+     Now that we have setup a wake cause and if needed setup the
+     peripherals state in deep sleep, we can now start going to
+     deep sleep.
+     In the case that no wake up sources were provided but deep
+     sleep was started, it will sleep forever unless hardware
+     reset occurs.
+     */
+    Serial.println("Going to sleep now");
+    esp_deep_sleep_start();
+  }
 
-// void reconnect()
-// {
-//   Serial.println("Attempting WiFi connection...");
-//   // Loop until we're reconnected
-//   while (!client.connected())
-//   {
-//     Serial.print("Attempting MQTT connection...");
-//     // Attempt to connect
-//     if (client.connect("ESP8266Client"))
-//     {
-//       Serial.println("connected");
-//       // Subscribe
-//       client.subscribe("esp32/output");
-//     }
-//     else
-//     {
-//       Serial.print("failed, rc=");
-//       Serial.print(client.state());
-//       Serial.println(" try again in 5 seconds");
-//       // Wait 5 seconds before retrying
-//       delay(5000);
-//     }
-//   }
-// }
+}
 
 void loop()
 {
@@ -531,21 +565,22 @@ void loop()
   //   reconnect();
   // }
   ArduinoOTA.handle();
-  // client.loop();
+  
+  // read the soil moisture value
+  soilMoistureValue = igro();
+  check_update_soil(soilMoistureValue);
 
-  long now = millis();
-  if (now - lastMsg > 1000)
+  // read the water level
+  if (check_water_level())
   {
-    lastMsg = now;
-    humidity = igro();
-
-    // Convert the value to a char array
-    char humString[8];
-    dtostrf(humidity, 1, 2, humString);
-    Serial.print("Humidity: ");
-    Serial.println(humString);
-
-    // Publish the value to the broker
-    // client.publish("esp32/humidity", humString);
+    Serial.println("Water level is ok");
   }
+  else
+  {
+    Serial.println("Water level is low");
+  }
+
+  // test the power of the pump
+  turnOnPump(1); 
+
 }
