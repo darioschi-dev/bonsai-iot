@@ -6,6 +6,8 @@
 #include <ArduinoOTA.h>
 #include <Preferences.h>
 #include <Arduino.h>
+#include <ArduinoJson.h>
+
 #if defined(ESP32)
 #include <WiFi.h>
 #elif defined(ESP8266)
@@ -13,11 +15,18 @@
 #endif
 
 #include <ESP_Mail_Client.h>
+#include <ESPAsyncWebServer.h>
 
 #pragma region WiFi_settings
 const char *ssid = "D-Link-2BE3C3";  // Enter your Wi-Fi name
 const char *password = "K3RazVjHpN"; // Enter Wi-Fi password
 #pragma endregion WiFi_settings
+
+#pragma region NTP_settings
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 0;
+const int daylightOffset_sec = 3600;
+#pragma endregion NTP_settings
 
 /**
 
@@ -49,9 +58,15 @@ SMTP_Message message;
 /* Declare the Session_Config for user defined session credentials */
 Session_Config config;
 
+/** Declare the server */
+AsyncWebServer server(80);
+
+/** Declare the json document */
+JsonDocument doc;
+
 #pragma region setup_variables
 
-const bool debug = true; // debug mode, if true the ESP32 will not go to sleep and will not send an email
+const bool debug = true;  // debug mode, if true the ESP32 will not go to sleep and will not send an email
 const int value_ref = 20; // reference value for the soil moisture
 
 // long lastMsg = 0; // last time a message was sent to the broker
@@ -319,6 +334,9 @@ void setup_wifi()
     Serial.print(".");
   }
 
+  // Init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
   // Print local IP address and start OTA service
   ArduinoOTA
       .onStart([]()
@@ -442,17 +460,74 @@ void setup_mail(const char *textMessage = NULL)
 }
 
 /**
+ * Setup the web server
+ */
+void setup_webserver()
+{
+  // Start the server
+  server.begin();
+
+  // Print the IP address
+  Serial.println(WiFi.localIP());
+
+  // Handle the root URL
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(200, "text/plain", "Hello, world"); });
+
+  // Handle the /soil URL
+  server.on("/soil", HTTP_GET, [](AsyncWebServerRequest *request)
+            {
+    doc["soil"] = soilMoistureValue;
+    doc["soilValue"] = soil;
+    doc["soilValueRead"] = analogRead(A0);
+    doc["percentage"] = percentage;
+    doc["waterLevel"] = check_water_level();
+    doc["waterLevelPercentage"] = analogRead(A6);
+    doc["waterLevelPercentageMapped"] = map(analogRead(A6), 4095, 0, 0, 100);
+    doc["bootCount"] = bootCount;
+    doc["lastBoot"] = preferences.getUInt("soilValue", 0);
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return;
+    }
+    doc["lastUpdate"] = asctime(&timeinfo);
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response); });
+
+  // Handle the 404 URL
+  server.onNotFound([](AsyncWebServerRequest *request)
+                    { request->send(404, "text/plain", "Not found"); });
+}
+
+/**
  * Setup system
  */
 void setup()
 {
-  // Set software serial baud to 115200;
-  Serial.begin(115200);
-  delay(1000); // Take some time to open up the Serial Monitor
-
   pinMode(ledPin, OUTPUT);
   pinMode(sensorPin, INPUT);
   pinMode(pumpPin, OUTPUT);
+
+  // Set software serial baud to 115200;
+  Serial.begin(115200);
+  delay(1000); // Take some time to open up the Serial Monitor
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    setup_wifi();
+  }
+  delay(500);
+
+  /* Connect to the server */
+  if (!smtp.connect(&config))
+  {
+    setup_mail();
+  }
+  delay(500);
+
+  // setup the web server
+  setup_webserver();
 
   // // connecting to a mqtt broker
   // client.setServer(mqtt_broker, mqtt_port);
@@ -506,8 +581,6 @@ void setup()
   // in normal condition, the value of the soil moisture is between 15% and 20%
   {
     Serial.println("Soil moisture is more than 20%, sending an email to the user");
-    setup_wifi();
-    setup_mail();
 
     // // send an mail to the user
     // if (!MailClient.sendMail(&smtp, &message))
@@ -515,7 +588,10 @@ void setup()
 
     // turn on the pump for 3 seconds
     if (check_water_level())
-      turnOnPump(); // check the water level and turn on the pump if the water level is ok
+    {
+      // turnOnPump(); // check the water level and turn on the pump if the water level is ok
+      Serial.println("Water level is ok, turning on the pump");
+    }
     else
     {
       String textMessage = "Water level is low, I prefer to not turn on the pump for security reasons";
@@ -555,7 +631,6 @@ void setup()
     Serial.println("Going to sleep now");
     esp_deep_sleep_start();
   }
-
 }
 
 void loop()
@@ -565,7 +640,7 @@ void loop()
   //   reconnect();
   // }
   ArduinoOTA.handle();
-  
+
   // read the soil moisture value
   soilMoistureValue = igro();
   check_update_soil(soilMoistureValue);
@@ -580,7 +655,7 @@ void loop()
     Serial.println("Water level is low");
   }
 
+  delay(5000);
   // test the power of the pump
-  turnOnPump(1); 
-
+  // turnOnPump(1);
 }
