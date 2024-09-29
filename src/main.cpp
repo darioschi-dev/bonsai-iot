@@ -18,8 +18,10 @@
 #include <ESPAsyncWebServer.h>
 
 #pragma region WiFi_settings
-const char *ssid = "D-Link-2BE3C3";  // Enter your Wi-Fi name
-const char *password = "K3RazVjHpN"; // Enter Wi-Fi password
+const bool wokwi = false;
+
+const char *ssid = wokwi ? "Wokwi-GUEST" : "D-Link-2BE3C3"; // Enter your Wi-Fi name
+const char *password = wokwi ? "" : "K3RazVjHpN";           // Enter Wi-Fi password
 #pragma endregion WiFi_settings
 
 #pragma region NTP_settings
@@ -66,7 +68,6 @@ JsonDocument doc;
 
 #pragma region setup_variables
 
-const bool debug = true;  // debug mode, if true the ESP32 will not go to sleep and will not send an email
 const int value_ref = 20; // reference value for the soil moisture
 
 // long lastMsg = 0; // last time a message was sent to the broker
@@ -77,12 +78,15 @@ long humidity = 0; // initialize humidity
 
 const int ledPin = 4;     // LED Pin
 const int sensorPin = 32; // Sensor Pin for the water level -- input
-const int pumpPin = 33;   // Pump Pin -- output
+const int pumpPin = 26;   // Pump Pin -- output
 
 int soil, percentage; // soil, percentage
 String stringa = "";
 
 int soilMoistureValue = 0;
+const bool debug = true;    // debug mode, if true the ESP32 will not go to sleep and will not send an email
+const bool pump = false;    // pump status, if true the pump is on, if false the pump is off
+const bool use_pomp = true; // if true the pump is used, if false the pump is not used
 #pragma endregion setup_variables
 
 // enter in sleep mode for 5 seconds and wake up by timer
@@ -148,6 +152,222 @@ void smtpCallback(SMTP_Status status)
 }
 
 #pragma endregion SMTP_settings
+
+// <!DOCTYPE html>
+// <html lang="it">
+// <head>
+//     <meta charset="UTF-8">
+//     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+//     <title>Controllo Pompa</title>
+//     <style>
+//         body {
+//             display: flex;
+//             flex-direction: column;
+//             justify-content: center;
+//             align-items: center;
+//             height: 100vh;
+//             background-color: #f0f0f0;
+//             font-family: Arial, sans-serif;
+//             margin: 0;
+//         }
+//         .row {
+//             display: flex;
+//             margin-bottom: 20px;
+//             align-items: center;
+//         }
+//         button {
+//             padding: 10px 20px;
+//             font-size: 20px;
+//             margin: 0 10px;
+//             border: none;
+//             border-radius: 5px;
+//             cursor: pointer;
+//             transition: background-color 0.3s ease;
+//         }
+//         button.on {
+//             background-color: green;
+//             color: white;
+//         }
+//         button.off {
+//             background-color: red;
+//             color: white;
+//         }
+//         button.standby {
+//             background-color: #555;
+//             color: white;
+//         }
+//         p {
+//             font-size: 18px;
+//             margin: 0 10px;
+//         }
+//         img {
+//             vertical-align: middle;
+//             width: 40px;
+//             height: 40px;
+//         }
+//     </style>
+// </head>
+// <body>
+
+//     <div class="row">
+//         <button class="on">Accendi</button>
+//         <button class="off">Spegni</button>
+//     </div>
+
+//     <div class="row">
+//         <p>Stato pompa:
+//             <span id="pump-status">Spenta</span>
+//         </p>
+//         <p>Icone:
+//             <span id="pump-icon">
+//                 <img src="https://img.icons8.com/?size=100&id=63312&format=png&color=#FA5252" alt="Pompa Icona" />
+//             </span>
+//         </p>
+//     </div>
+
+//     <div class="row">
+//         <button class="standby">Standby</button>
+//     </div>
+
+//     <script>
+//         const pumpStatus = document.getElementById('pump-status');
+//         const pumpIcon = document.getElementById('pump-icon');
+
+//         const buttons = document.querySelectorAll('button');
+//         buttons.forEach(button => {
+//             button.addEventListener('click', () => {
+//                 const action = button.classList.contains('on') ? 'on' : 'off';
+//                 fetch(`/api/pump/${action}`, { method: 'POST' })
+//                     .then(response => response.json())
+//                     .then(data => {
+//                         pumpStatus.textContent = data.status === 'on' ? 'Accesa' : 'Spenta';
+//                         pumpIcon.innerHTML = data.status === 'on'
+//                             ? '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=000000" />'
+//                             : '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=#FA5252" />';
+//                     });
+//             });
+//         });
+
+//         const standbyButton = document.querySelector('.standby');
+//         standbyButton.addEventListener('click', () => {
+//             fetch('/api/standby', { method: 'POST' });
+//         });
+//     </script>
+// </body>
+// </html>
+
+String prepare_html_page()
+{
+  return R"(
+    <!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controllo Pompa</title>
+    <script src="https://kit.fontawesome.com/7c86fa4f5a.js" crossorigin="anonymous"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+        .row {
+            display: flex;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button.on {
+            background-color: green;
+            color: white;
+        }
+        button.off {
+            background-color: red;
+            color: white;
+        }
+        button.standby {
+            background-color: #555;
+            color: white;
+        }
+        p {
+            font-size: 18px;
+            margin: 0 10px;
+        }
+        img {
+            vertical-align: middle;
+            width: 40px;
+            height: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="row">
+        <button class="on">Accendi</button>
+        <button class="off">Spegni</button>
+    </div>
+
+    <div class="row">
+        <p>Stato pompa: 
+            <span id="pump-status">Spenta</span>
+        </p>
+        <p>Icone: 
+            <span id="pump-icon">
+            // icon from fontawesome
+                <i class="fas fa-faucet" style="font-size: 40px; color: #FA5252;"></i>
+            </span>
+        </p>
+    </div>
+
+    <div class="row">
+        <button class="standby">Standby</button>
+    </div>
+
+    <script>
+        const pumpStatus = document.getElementById('pump-status');
+        const pumpIcon = document.getElementById('pump-icon');
+
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(button => {
+            button.addEventListener('click', () => {
+                const action = button.classList.contains('on') ? 'on' : 'off';
+                fetch(`/api/pump/${action}`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        pumpStatus.textContent = data.status === 'on' ? 'Accesa' : 'Spenta';
+                        console.log(data.status);
+                        pumpIcon.innerHTML = data.status == 'on'
+                            ? '<i class="fas fa-faucet" style="font-size: 40px; color: #000000;"></i>'
+                            : '<i class="fas fa-faucet" style="font-size: 40px; color: #FA5252;"></i>';
+                            // ? '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=000000" />'
+                            // : '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=#FA5252" />';
+                    });
+            });
+        });
+
+        const standbyButton = document.querySelector('.standby');
+        standbyButton.addEventListener('click', () => {
+            fetch('/api/standby', { method: 'POST' });
+        });
+    </script>
+</body>
+</html>
+)";
+}
 
 /*
 Method to print the reason by which ESP32
@@ -272,23 +492,37 @@ void callback(char *topic, byte *message, unsigned int length)
   }
 }
 
-/**
- * turn on the pump for 3 seconds or while the soil moisture is less than 20%
- */
-void turnOnPump(int timeOn = NULL)
+void turnOnPump()
 {
   Serial.println("Turning on the pump");
-  // turn on the pump
+  digitalWrite(pumpPin, LOW);
+}
+
+void turnOffPump()
+{
+  Serial.println("Turning off the pump");
   digitalWrite(pumpPin, HIGH);
-  if (timeOn == NULL)
+}
+
+/**
+ * turn on the pump for 3 seconds or while the soil moisture is less than 20%
+ * @param timeOn the time to turn on the pump (nullable)
+ */
+void autoTurnOnPump(int timeOn = 3)
+{
+  if (use_pomp == false)
   {
-    timeOn = 3;
+    Serial.println("Pump is not used");
+    return;
   }
-  delay(timeOn * 1000); // turn on the pump for 3 seconds
+  Serial.println("Turning on the pump");
+  // turn on the pump
+  digitalWrite(pumpPin, LOW);
+  delay(timeOn * 1000); // turn on the pump for the specified time
   Serial.println("Pump is on, waiting for");
   Serial.print(timeOn);
   Serial.print(" seconds\n");
-  digitalWrite(pumpPin, LOW);
+  digitalWrite(pumpPin, HIGH);
 }
 
 /**
@@ -403,7 +637,8 @@ void setup_mail(const char *textMessage = NULL)
   See https://en.wikipedia.org/wiki/Time_zone for a list of the GMT/UTC timezone offsets
   */
   config.time.ntp_server = F("pool.ntp.org,time.nist.gov");
-  config.time.gmt_offset = 3;
+  // config offset for timezone "Europe/Rome"
+  config.time.gmt_offset = 1;
   config.time.day_light_offset = 0;
 
   /* Set the message headers */
@@ -470,12 +705,12 @@ void setup_webserver()
   // Print the IP address
   Serial.println(WiFi.localIP());
 
-  // Handle the root URL
+  // Handle the root URL and response with HTML page in ./assets/index.html
+  // Read a file how a string and send it as a response
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(200, "text/plain", "Hello, world"); });
-
+            { request->send_P(200, "text/html", prepare_html_page().c_str()); });
   // Handle the /soil URL
-  server.on("/soil", HTTP_GET, [](AsyncWebServerRequest *request)
+  server.on("/api/soil", HTTP_GET, [](AsyncWebServerRequest *request)
             {
     doc["soil"] = soilMoistureValue;
     doc["soilValue"] = soil;
@@ -486,6 +721,12 @@ void setup_webserver()
     doc["waterLevelPercentageMapped"] = map(analogRead(A6), 4095, 0, 0, 100);
     doc["bootCount"] = bootCount;
     doc["lastBoot"] = preferences.getUInt("soilValue", 0);
+    bool out = digitalRead(pumpPin);
+    // output status
+    doc["outputPumpPinStatus"] = out;
+    // pomp status
+    doc["pumpStatus"] = pump ? "on" : "off";
+
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) {
     Serial.println("Failed to obtain time");
@@ -496,9 +737,42 @@ void setup_webserver()
     serializeJson(doc, response);
     request->send(200, "application/json", response); });
 
+  // Handle the /pump/on URL
+  server.on("/api/pump/on", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+    turnOnPump();
+    // prepare the json response
+    doc["status"] = "on";
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response); });
+
+  // Handle the /pump/off URL
+  server.on("/api/pump/off", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+    turnOffPump();
+    // prepare the json response
+    doc["status"] = "off";
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response); });
+
+  // Handle the /standby URL
+  server.on("/api/standby", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+
+    Serial.println("Going to sleep now");
+    esp_deep_sleep_start(); });
+
   // Handle the 404 URL
   server.onNotFound([](AsyncWebServerRequest *request)
-                    { request->send(404, "text/plain", "Not found"); });
+                    { 
+                      // prepare the json response
+                      doc["status"] = "error";
+                      doc["message"] = "Not found";
+                      String response;
+                      serializeJson(doc, response);
+                      request->send(404, "application/json", response); });
 }
 
 /**
@@ -508,6 +782,8 @@ void setup()
 {
   pinMode(ledPin, OUTPUT);
   pinMode(sensorPin, INPUT);
+  // reset the pump
+  digitalWrite(pumpPin, HIGH);
   pinMode(pumpPin, OUTPUT);
 
   // Set software serial baud to 115200;
@@ -589,7 +865,7 @@ void setup()
     // turn on the pump for 3 seconds
     if (check_water_level())
     {
-      // turnOnPump(); // check the water level and turn on the pump if the water level is ok
+      // autoTurnOnPump(); // check the water level and turn on the pump if the water level is ok
       Serial.println("Water level is ok, turning on the pump");
     }
     else
@@ -657,5 +933,5 @@ void loop()
 
   delay(5000);
   // test the power of the pump
-  // turnOnPump(1);
+  // autoTurnOnPump(1);
 }

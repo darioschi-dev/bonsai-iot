@@ -1,0 +1,47 @@
+<!-- Devo costruire una pagina html con una bella grafica che abbia due pulsanti per accensione e spegnimento pompa
+  -->
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Controllo Pompa</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f0f0f0;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 20px;
+        margin: 0 10px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      button.on {
+        background-color: green;
+        color: white;
+      }
+      button.off {
+        background-color: red;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <button class="on">Accendi</button>
+    <button class="off">Spegni</button>
+    <script>
+      const buttons = document.querySelectorAll("button");
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const action = button.classList.contains("on") ? "on" : "off";
+          fetch(`/api/pump/${action}`, { method: "POST" });
+        });
+      });
+    </script>
+  </body>
+</html>
