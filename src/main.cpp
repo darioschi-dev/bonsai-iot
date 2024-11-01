@@ -1,3 +1,4 @@
+#pragma region include
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
@@ -7,6 +8,7 @@
 #include <Preferences.h>
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <SPIFFS.h>
 
 #if defined(ESP32)
 #include <WiFi.h>
@@ -16,6 +18,7 @@
 
 #include <ESP_Mail_Client.h>
 #include <ESPAsyncWebServer.h>
+#pragma endregion include
 
 #pragma region WiFi_settings
 const bool wokwi = false;
@@ -30,6 +33,7 @@ const long gmtOffset_sec = 0;
 const int daylightOffset_sec = 3600;
 #pragma endregion NTP_settings
 
+#pragma region definitions
 /**
 
 #pragma region MQTT_Broker
@@ -66,7 +70,11 @@ AsyncWebServer server(80);
 /** Declare the json document */
 JsonDocument doc;
 
+#pragma endregion definitions
+
 #pragma region setup_variables
+
+float voltage_percentage = 0; // voltage percentage
 
 const int value_ref = 20; // reference value for the soil moisture
 
@@ -152,222 +160,6 @@ void smtpCallback(SMTP_Status status)
 }
 
 #pragma endregion SMTP_settings
-
-// <!DOCTYPE html>
-// <html lang="it">
-// <head>
-//     <meta charset="UTF-8">
-//     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-//     <title>Controllo Pompa</title>
-//     <style>
-//         body {
-//             display: flex;
-//             flex-direction: column;
-//             justify-content: center;
-//             align-items: center;
-//             height: 100vh;
-//             background-color: #f0f0f0;
-//             font-family: Arial, sans-serif;
-//             margin: 0;
-//         }
-//         .row {
-//             display: flex;
-//             margin-bottom: 20px;
-//             align-items: center;
-//         }
-//         button {
-//             padding: 10px 20px;
-//             font-size: 20px;
-//             margin: 0 10px;
-//             border: none;
-//             border-radius: 5px;
-//             cursor: pointer;
-//             transition: background-color 0.3s ease;
-//         }
-//         button.on {
-//             background-color: green;
-//             color: white;
-//         }
-//         button.off {
-//             background-color: red;
-//             color: white;
-//         }
-//         button.standby {
-//             background-color: #555;
-//             color: white;
-//         }
-//         p {
-//             font-size: 18px;
-//             margin: 0 10px;
-//         }
-//         img {
-//             vertical-align: middle;
-//             width: 40px;
-//             height: 40px;
-//         }
-//     </style>
-// </head>
-// <body>
-
-//     <div class="row">
-//         <button class="on">Accendi</button>
-//         <button class="off">Spegni</button>
-//     </div>
-
-//     <div class="row">
-//         <p>Stato pompa:
-//             <span id="pump-status">Spenta</span>
-//         </p>
-//         <p>Icone:
-//             <span id="pump-icon">
-//                 <img src="https://img.icons8.com/?size=100&id=63312&format=png&color=#FA5252" alt="Pompa Icona" />
-//             </span>
-//         </p>
-//     </div>
-
-//     <div class="row">
-//         <button class="standby">Standby</button>
-//     </div>
-
-//     <script>
-//         const pumpStatus = document.getElementById('pump-status');
-//         const pumpIcon = document.getElementById('pump-icon');
-
-//         const buttons = document.querySelectorAll('button');
-//         buttons.forEach(button => {
-//             button.addEventListener('click', () => {
-//                 const action = button.classList.contains('on') ? 'on' : 'off';
-//                 fetch(`/api/pump/${action}`, { method: 'POST' })
-//                     .then(response => response.json())
-//                     .then(data => {
-//                         pumpStatus.textContent = data.status === 'on' ? 'Accesa' : 'Spenta';
-//                         pumpIcon.innerHTML = data.status === 'on'
-//                             ? '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=000000" />'
-//                             : '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=#FA5252" />';
-//                     });
-//             });
-//         });
-
-//         const standbyButton = document.querySelector('.standby');
-//         standbyButton.addEventListener('click', () => {
-//             fetch('/api/standby', { method: 'POST' });
-//         });
-//     </script>
-// </body>
-// </html>
-
-String prepare_html_page()
-{
-  return R"(
-    <!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controllo Pompa</title>
-    <script src="https://kit.fontawesome.com/7c86fa4f5a.js" crossorigin="anonymous"></script>
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
-            margin: 0;
-        }
-        .row {
-            display: flex;
-            margin-bottom: 20px;
-            align-items: center;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 20px;
-            margin: 0 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        button.on {
-            background-color: green;
-            color: white;
-        }
-        button.off {
-            background-color: red;
-            color: white;
-        }
-        button.standby {
-            background-color: #555;
-            color: white;
-        }
-        p {
-            font-size: 18px;
-            margin: 0 10px;
-        }
-        img {
-            vertical-align: middle;
-            width: 40px;
-            height: 40px;
-        }
-    </style>
-</head>
-<body>
-
-    <div class="row">
-        <button class="on">Accendi</button>
-        <button class="off">Spegni</button>
-    </div>
-
-    <div class="row">
-        <p>Stato pompa: 
-            <span id="pump-status">Spenta</span>
-        </p>
-        <p>Icone: 
-            <span id="pump-icon">
-            // icon from fontawesome
-                <i class="fas fa-faucet" style="font-size: 40px; color: #FA5252;"></i>
-            </span>
-        </p>
-    </div>
-
-    <div class="row">
-        <button class="standby">Standby</button>
-    </div>
-
-    <script>
-        const pumpStatus = document.getElementById('pump-status');
-        const pumpIcon = document.getElementById('pump-icon');
-
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(button => {
-            button.addEventListener('click', () => {
-                const action = button.classList.contains('on') ? 'on' : 'off';
-                fetch(`/api/pump/${action}`, { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        pumpStatus.textContent = data.status === 'on' ? 'Accesa' : 'Spenta';
-                        console.log(data.status);
-                        pumpIcon.innerHTML = data.status == 'on'
-                            ? '<i class="fas fa-faucet" style="font-size: 40px; color: #000000;"></i>'
-                            : '<i class="fas fa-faucet" style="font-size: 40px; color: #FA5252;"></i>';
-                            // ? '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=000000" />'
-                            // : '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=#FA5252" />';
-                    });
-            });
-        });
-
-        const standbyButton = document.querySelector('.standby');
-        standbyButton.addEventListener('click', () => {
-            fetch('/api/standby', { method: 'POST' });
-        });
-    </script>
-</body>
-</html>
-)";
-}
 
 /*
 Method to print the reason by which ESP32
@@ -582,7 +374,9 @@ void setup_wifi()
         type = "filesystem";
 
       // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-      Serial.println("Start updating " + String(type)); })
+      Serial.println("Start updating ");
+      Serial.println(String(type));  
+      })
       .onEnd([]()
              { Serial.println("\nEnd"); })
       .onProgress([](unsigned int progress, unsigned int total)
@@ -707,8 +501,12 @@ void setup_webserver()
 
   // Handle the root URL and response with HTML page in ./assets/index.html
   // Read a file how a string and send it as a response
+
+  // I have an index.html file in the data folder in src/assets/index.html
+
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send_P(200, "text/html", prepare_html_page().c_str()); });
+            { request->send(SPIFFS, "/index.html", "text/html"); });
+
   // Handle the /soil URL
   server.on("/api/soil", HTTP_GET, [](AsyncWebServerRequest *request)
             {
