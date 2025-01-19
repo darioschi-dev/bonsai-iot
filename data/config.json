@@ -1,0 +1,19 @@
+{
+    "network": {
+      "wifi_ssid": "D-Link-2BE3C3",
+      "wifi_password": "K3RazVjHpN",
+      "mqtt_server": "6804c12a8e254e5c9f0d45b0ea9c0b2a.s1.eu.hivemq.cloud",
+      "mqtt_user": "hivemq.webclient.1726606709307",
+      "mqtt_password": " 9wD6c7YmrP<tIi!5VL#>",
+      "mqtt_port": 8883
+    },
+    "device": {
+      "soil_sensor_pin": 34,
+      "pump_pin": 27,
+      "relay_pin": 26,
+      "humidity_threshold": 500,
+      "pump_duration": 10,
+      "measurement_interval": 60000
+    }
+  }
+  

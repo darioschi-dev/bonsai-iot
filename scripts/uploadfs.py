@@ -1,9 +1,19 @@
-Import("env")
-from SCons.Script import AlwaysBuild, Default
+from SCons.Script import DefaultEnvironment
+import subprocess
 
-# Comando per eseguire automaticamente l'upload di SPIFFS
-def after_upload(source, target, env):
-    env.Execute("pio run --target uploadfs")
+# Inizializza l'ambiente correttamente
+env = DefaultEnvironment()
 
-# Associa lo script da eseguire dopo l'upload del codice
-env.AddPostAction("upload", after_upload)
+def upload_fs(source, target, env):
+    result = subprocess.run(
+        ["pio", "run", "-t", "uploadfs"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    if result.returncode != 0:
+        print(result.stderr)
+        raise Exception("Errore durante l'upload dei file SPIFFS")
+
+# Aggiungi l'azione post correttamente
+env.AddPostAction("upload", upload_fs)
