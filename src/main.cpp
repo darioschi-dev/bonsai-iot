@@ -74,7 +74,12 @@ JsonDocument doc;
 
 #pragma region setup_variables
 
-float voltage_percentage = 0; // voltage percentage
+int pinADC = 34;                   // Pin ADC scelto
+float tensioneDiRiferimento = 3.3; // Tensione di riferimento dell'ESP32
+float divisore = 3.0;              // Rapporto del partitore di tensione
+
+float tensioneMassima = 4.2; // Tensione a 100%
+float tensioneMinima = 3.0;  // Tensione a 0%
 
 const int value_ref = 20; // reference value for the soil moisture
 
@@ -92,10 +97,9 @@ int soil, percentage; // soil, percentage
 String stringa = "";
 
 int soilMoistureValue = 0;
-const bool debug = true;    // debug mode, if true the ESP32 will not go to sleep and will not send an email
-const bool pump = false;    // pump status, if true the pump is on, if false the pump is off
-const bool use_pomp = true; // if true the pump is used, if false the pump is not used
-#pragma endregion setup_variables
+const bool debug = false;    // debug mode, if true the ESP32 will not go to sleep and will not send an email
+const bool pump = false;     // pump status, if true the pump is on, if false the pump is off
+const bool use_pomp = false; // if true the pump is used, if false the pump is not used
 
 // enter in sleep mode for 5 seconds and wake up by timer
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
@@ -103,6 +107,8 @@ const bool use_pomp = true; // if true the pump is used, if false the pump is no
 
 // RTC_DATA_ATTR is a variable that is stored in RTC memory and will be retained after deep sleep
 RTC_DATA_ATTR int bootCount = 0; // count the number of boot
+
+#pragma endregion setup_variables
 
 #pragma region SMTP_settings
 
@@ -375,8 +381,7 @@ void setup_wifi()
 
       // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
       Serial.println("Start updating ");
-      Serial.println(String(type));  
-      })
+      Serial.println(String(type)); })
       .onEnd([]()
              { Serial.println("\nEnd"); })
       .onProgress([](unsigned int progress, unsigned int total)
@@ -573,6 +578,29 @@ void setup_webserver()
                       request->send(404, "application/json", response); });
 }
 
+void readVoltage()
+{
+  int valoreADC = analogRead(pinADC);
+  float tensioneLetta = valoreADC * (tensioneDiRiferimento / 4095.0);
+  float tensioneBatteria = tensioneLetta * divisore;
+
+  // Calcolo della percentuale
+  float percentualeCarica = ((tensioneBatteria - tensioneMinima) / (tensioneMassima - tensioneMinima)) * 100.0;
+
+  // Limita il valore della percentuale tra 0 e 100
+  if (percentualeCarica > 100)
+    percentualeCarica = 100;
+  if (percentualeCarica < 0)
+    percentualeCarica = 0;
+
+  Serial.print("Tensione batteria: ");
+  Serial.print(tensioneBatteria);
+  Serial.print(" V - Livello di carica: ");
+  Serial.print(percentualeCarica);
+  Serial.println("%");
+  delay(1000); // Intervallo di lettura
+}
+
 /**
  * Setup system
  */
@@ -685,10 +713,10 @@ void setup()
 
   /*
   First we configure the wake up source
-  We set our ESP32 to wake up every --> 8 hours, 8 * 3600 seconds
+  We set our ESP32 to wake up every --> 2 hours, 2 * 3600 seconds
   */
-  esp_sleep_enable_timer_wakeup(8ULL * TIME_TO_SLEEP * uS_TO_S_FACTOR);
-  Serial.println("Setup ESP32 to sleep for every 8 hours");
+  esp_sleep_enable_timer_wakeup(2ULL * TIME_TO_SLEEP * uS_TO_S_FACTOR);
+  Serial.println("Setup ESP32 to sleep for every 2 hours");
 
   Serial.flush();
 
