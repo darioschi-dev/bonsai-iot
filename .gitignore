@@ -1,3 +1,18 @@
+# macOS
+.DS_Store
+
+# PlatformIO
 .pio/
 .vscode/
-.DS_Store
+*.bin
+*.elf
+*.map
+*.d
+*.a
+*.o
+.project.checksum
+
+# Python
+*.pyc
+*.log
+__pycache__/
