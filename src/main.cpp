@@ -239,12 +239,12 @@ void check_update_soil(int valueSoil)
   {
     Serial.println("Updating soil moisture value");
     preferences.putUInt("soilValue", valueSoil);
-    preferences.end();
   }
   else
   {
     Serial.println("Soil moisture value is the same");
   }
+  preferences.end();
 }
 
 /**
@@ -329,7 +329,8 @@ bool check_water_level()
   int waterLevelPercentage = map(waterLevel, 4095, 0, 0, 100);
   Serial.println("Water level percentage: ");
   Serial.println(waterLevelPercentage);
-  if (waterLevel == HIGH)
+  // consider the water level ok if the percentage is greater than 20%
+  if (waterLevelPercentage > 20)
   {
     Serial.println("Water level is ok");
     return true;
