@@ -1,10 +1,10 @@
 {
     "network": {
-      "wifi_ssid": "D-Link-2BE3C3",
-      "wifi_password": "K3RazVjHpN",
-      "mqtt_server": "6804c12a8e254e5c9f0d45b0ea9c0b2a.s1.eu.hivemq.cloud",
-      "mqtt_user": "hivemq.webclient.1726606709307",
-      "mqtt_password": " 9wD6c7YmrP<tIi!5VL#>",
+      "wifi_ssid": "",
+      "wifi_password": "",
+      "mqtt_server": "***.s1.eu.hivemq.cloud",
+      "mqtt_user": "hivemq.webclient.**",
+      "mqtt_password": "",
       "mqtt_port": 8883
     },
     "device": {
