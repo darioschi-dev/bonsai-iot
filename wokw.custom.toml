@@ -1,5 +1,6 @@
 # Wokwi Configuration File
 # Reference: https://docs.wokwi.com/vscode/project-config
+
 [wokwi]
 version = 1
 firmware = '.pio/build/esp32doit-devkit-v1_20240928_4/firmware.bin'
@@ -8,6 +9,9 @@ elf = '.pio/build/esp32doit-devkit-v1_20240928_4/firmware.elf'
 [[net]]
 ssid = "Wokwi-GUEST"
 password = ""
+
+[[chip]]
+type = "esp32"
 
 [[components]]
 type = "soil-moisture"

@@ -1,3 +1,14 @@
+# PlatformIO
 .pio/
 .vscode/
 .DS_Store
+
+# SPIFFS build
+data/config.json
+data/config.prod.json
+
+# Python
+__pycache__/
+*.pyc
+
+*.env*

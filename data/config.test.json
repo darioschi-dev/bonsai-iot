@@ -1,0 +1,18 @@
+{
+  "network": {
+    "wifi_ssid": "Wokwi-GUEST",
+    "wifi_password": "",
+    "mqtt_server": "broker.hivemq.com",
+    "mqtt_user": "",
+    "mqtt_password": "",
+    "mqtt_port": 1883
+  },
+  "device": {
+    "soil_sensor_pin": 32,
+    "pump_pin": 26,
+    "relay_pin": 27,
+    "humidity_threshold": 20.0,
+    "pump_duration": 3,
+    "measurement_interval": 60000
+  }
+}
