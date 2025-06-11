@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Bonsai Dashboard</title>
+</head>
+<body>
+  <h1>Controllo Pompa Bonsai</h1>
+  <button onclick="irrigate()">Attiva Pompa</button>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+
+    client.on('connect', () => {
+      console.log('Connesso a MQTT!');
+    });
+
+    function irrigate() {
+      client.publish("bonsai/pump/cmd", "ON");
+      alert("Comando inviato!");
+    }
+  </script>
+</body>
+</html>
