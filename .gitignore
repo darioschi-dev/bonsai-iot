@@ -16,3 +16,5 @@
 *.pyc
 *.log
 __pycache__/
+.env
+data/config.prod.json
