@@ -55,9 +55,10 @@ void setup() {
   delay(100);
 
   if (!loadConfig(config)) {
-    Serial.println("Failed to load config.json");
+    Serial.println("[✖] Failed to load config.json");
     return;
   }
+  Serial.println("[✔] Config loaded successfully!");
 
   pinMode(config.led_pin, OUTPUT);
   pinMode(config.sensor_pin, INPUT);

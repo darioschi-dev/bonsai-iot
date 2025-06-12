@@ -2,8 +2,10 @@
 # Reference: https://docs.wokwi.com/vscode/project-config
 [wokwi]
 version = 1
-firmware = '.pio/build/esp32doit-devkit-v1_20240928_4/firmware.bin'
-elf = '.pio/build/esp32doit-devkit-v1_20240928_4/firmware.elf'
+projectId = "433590932279013377"
+firmware = '.pio/build/esp32-test/firmware.bin'
+elf = '.pio/build/esp32-test/firmware.elf'
+
 
 [[net]]
 ssid = "Wokwi-GUEST"
@@ -28,3 +30,8 @@ name = "Status LED"
 type = "generic"
 pin = 26
 name = "Pump Relay"
+
+[fs]
+image = ".pio/build/esp32-test/spiffs.bin"
+mount = true
+mount_path = "/spiffs"

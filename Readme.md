@@ -35,11 +35,13 @@ python scripts/setup_config.py
 make flash
 ```
 
+> Carica firmware e file SPIFFS sull’ESP32 reale (`ENV=esp32-prod` di default).
+
 ### 4. Esegui simulazione in Wokwi (ambiente test)
 
 1. Inserisci il tuo token nel file `.env`:
 
-```
+```env
 WOKWI_CLI_TOKEN=wok_XXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
@@ -48,6 +50,8 @@ WOKWI_CLI_TOKEN=wok_XXXXXXXXXXXXXXXXXXXXXXXXX
 ```bash
 make test
 ```
+
+> Compila, carica SPIFFS virtuale e avvia la simulazione online con il file system montato.
 
 ---
 
@@ -58,38 +62,58 @@ make test
 ├── data/                   # Contenuti SPIFFS
 │   ├── config.example.json
 │   ├── config.prod.json
-│   ├── config.json
+│   ├── config.test.json
+│   ├── config.json         # Generato dinamicamente
 │   └── index.html
-├── diagram.json            # Schema Wokwi (simulazione)
-├── include/                # Header files
-├── lib/                    # Librerie custom
-├── platformio.ini          # Configurazione PIO
-├── Readme.md               # Questo file
+├── diagram.json            # Schema hardware Wokwi
+├── include/                # Header files (config.h, mail.h, ecc.)
+├── lib/                    # Librerie custom (se presenti)
+├── platformio.ini          # Configurazione build PIO
 ├── scripts/
-│   ├── setup_config.py     # Genera config.json
-│   └── uploadfs.py         # Upload SPIFFS post-firmware
-├── src/                    # Codice sorgente ESP32
-├── test/                   # Test hardware/futuri
+│   ├── setup_config.py     # Script per generare config.json
+│   └── uploadfs.py         # Upload automatico SPIFFS post-upload
+├── src/                    # Codice principale
+│   └── main.cpp
+├── test/                   # Test futuri
 ├── wokwi.toml              # Configurazione simulazione Wokwi
-└── .env                    # Token Wokwi (non tracciato)
+├── .env                    # Token Wokwi (non tracciato)
+├── .gitignore              # Protezione file sensibili
+├── Makefile                # Comandi build e test
+└── README.md               # Questo file
 ```
+
+---
+
+## 🛠️ Comandi `make`
+
+| Comando        | Descrizione |
+|----------------|-------------|
+| `make`         | Compila, carica firmware e SPIFFS, apre il monitor seriale |
+| `make flash`   | Come sopra, ma forzato su ambiente reale |
+| `make config`  | Copia `data/config.{ENV}.json` → `data/config.json` |
+| `make test`    | Compila in `esp32-test`, monta SPIFFS, avvia simulazione Wokwi |
+| `make upload`  | Carica solo il firmware (no SPIFFS) |
+| `make uploadfs`| Carica solo SPIFFS (se `ENV != esp32-test`) |
+| `make monitor` | Apre il monitor seriale |
+| `make clean`   | Pulisce la build per l’ambiente attivo |
+| `make setup-config` | Rigenera `config.json` da template |
 
 ---
 
 ## ⚙️ Configurazione
 
-Modifica `data/config.example.json` per configurare:
+Modifica `data/config.example.json` (e versioni `.prod` / `.test`) per:
 
 * SSID/Password Wi-Fi
-* Email mittente/destinatario
-* Soglia umidità e tempi di attivazione pompa
-* Pin GPIO utilizzati
+* Email mittente e destinatario
+* Broker MQTT (opzionale)
+* Soglia umidità (0–100 %)
+* Pin GPIO per LED, sensore, pompa
+* Debug e durata deep sleep
 
 ---
 
-## 🧪 Testing
-
-La simulazione online è basata su [Wokwi CLI](https://docs.wokwi.com/cli/overview):
+## 🧪 Simulazione con Wokwi CLI
 
 ### 🧰 Installazione Wokwi CLI
 
@@ -98,23 +122,24 @@ La simulazione online è basata su [Wokwi CLI](https://docs.wokwi.com/cli/overvi
 
    ```bash
    chmod +x wokwi-cli
-   mv wokwi-cli /usr/local/bin/
+   sudo mv wokwi-cli /usr/local/bin/
    ```
+
 3. Verifica:
 
    ```bash
    wokwi-cli --version
    ```
 
-### 🆕 Inizializza Wokwi (solo la prima volta)
+### ⚙️ Inizializza Wokwi (solo 1 volta)
 
 ```bash
 wokwi-cli init
 ```
 
-> ⚠️ Sovrascrive `wokwi.toml` e `diagram.json`. Fai un backup se necessario.
+> ⚠️ Sovrascrive `wokwi.toml` e `diagram.json`
 
-### ♻️ Per ripristinare i tuoi file custom
+### ♻️ Ripristina preset personalizzati
 
 ```bash
 cp wokwi-presets/diagram.json diagram.json
@@ -125,17 +150,17 @@ cp wokwi-presets/wokwi.toml wokwi.toml
 
 ## 📡 MQTT (opzionale)
 
-Il codice supporta l’uso di broker MQTT per l’invio e ricezione di dati. Broker consigliati:
+Broker supportati:
 
 - [HiveMQ Cloud](https://console.hivemq.cloud/)
-- [Mosquitto](https://mosquitto.org/)
+- Mosquitto (locale o remoto)
 
 ---
 
 ## 🔐 Sicurezza
 
-* `config.json` e `.env` sono ignorati da Git
-* Non committare dati sensibili
+* `.env` e `config.json` sono esclusi da Git
+* Nessuna credenziale viene salvata nel repo
 
 ---
 

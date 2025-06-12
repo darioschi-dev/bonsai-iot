@@ -1,29 +1,29 @@
-# Makefile con supporto ambienti dev, test, prod
+# Makefile con supporto ambienti esp32-test, esp32-prod
 
 .PHONY: all build upload uploadfs monitor test wokwi clean flash setup-config config
 
-# Ambiente attivo (default = dev)
-ENV ?= dev
+# Ambiente attivo (default = esp32-prod)
+ENV ?= esp32-prod
 
 # Comando principale
 all: build upload uploadfs monitor
 
 # Compila firmware
 build:
-	pio run
+	pio run -e $(ENV)
 
 # Upload firmware (salta in test)
 upload:
-	@if [ "$(ENV)" != "test" ]; then \
-		pio run --target upload; \
+	@if [ "$(ENV)" != "esp32-test" ]; then \
+		pio run -e $(ENV) --target upload; \
 	else \
 		echo "⏭️  Upload saltato (ambiente test)"; \
 	fi
 
 # Upload SPIFFS (salta in test)
 uploadfs:
-	@if [ "$(ENV)" != "test" ]; then \
-		pio run --target uploadfs; \
+	@if [ "$(ENV)" != "esp32-test" ]; then \
+		pio run -e $(ENV) --target uploadfs; \
 	else \
 		echo "⏭️  Upload SPIFFS saltato (ambiente test)"; \
 	fi
@@ -35,11 +35,12 @@ monitor:
 # Copia config.{ENV}.json in config.json
 config:
 	@echo "🌐 Ambiente attivo: $(ENV)"
-	@if [ -f "data/config.$(ENV).json" ]; then \
-		cp data/config.$(ENV).json data/config.json; \
-		echo "✔️  Configurazione caricata: config.$(ENV).json"; \
+	ENV_NAME=$(subst esp32-,,$(ENV)) && \
+	if [ -f "data/config.$$ENV_NAME.json" ]; then \
+		cp data/config.$$ENV_NAME.json data/config.json; \
+		echo "✔️  Configurazione caricata: config.$$ENV_NAME.json"; \
 	else \
-		echo "❌ Configurazione mancante: config.$(ENV).json"; \
+		echo "❌ Configurazione mancante: config.$$ENV_NAME.json"; \
 		exit 1; \
 	fi
 
@@ -52,17 +53,19 @@ setup-config:
 
 # Pulizia build
 clean:
-	pio run --target clean
-
+	pio run -e $(ENV) --target clean
+	
 # Test Wokwi
 test:
-	@echo "🧪 TEST (ENV=test)"
-	$(MAKE) ENV=test config
-	ENV_NAME=$$(pio project config --json-output | jq -r '.[0][0]' | sed 's/^env://') && \
+	@echo "🧪 TEST (ENV=esp32-test)"
+	$(MAKE) ENV=esp32-test config
+	ENV_NAME=esp32-test && \
 	FIRMWARE_PATH=".pio/build/$${ENV_NAME}/firmware.bin" && \
 	ELF_PATH=".pio/build/$${ENV_NAME}/firmware.elf" && \
 	sed -i.bak -E "s|firmware = .*|firmware = '$${FIRMWARE_PATH}'|" wokwi.toml && \
 	sed -i.bak -E "s|elf = .*|elf = '$${ELF_PATH}'|" wokwi.toml && \
-	pio run && pio run -t buildfs && \
+	pio run -e $${ENV_NAME} && \
+	pio run -e $${ENV_NAME} -t buildfs && \
 	if [ -f .env ]; then set -a && . .env && set +a; fi && \
-	test -f wokwi.toml && wokwi-cli .
+	wokwi-cli . && \
+	( open "https://wokwi.com/projects/433590215533216769" || xdg-open "https://wokwi.com/projects/433590215533216769" || echo "🌐 Apri manualmente: https://wokwi.com/projects/433590215533216769" )
