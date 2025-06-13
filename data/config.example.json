@@ -1,9 +1,9 @@
 {
   "wifi_ssid": "YOUR_SSID",
   "wifi_password": "YOUR_PASSWORD",
+  "mqtt_username": "bonsai-mqtt-dashboard",
+  "mqtt_password": "la-tua-password",
   "mqtt_server": "your.mqtt.broker",
-  "mqtt_user": "",
-  "mqtt_password": "",
   "mqtt_port": 1883,
   "soil_sensor_pin": 32,
   "pump_pin": 26,

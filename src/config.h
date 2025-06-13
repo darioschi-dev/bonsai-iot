@@ -6,6 +6,8 @@
 struct Config {
   String wifi_ssid;
   String wifi_password;
+  String mqtt_username;
+  String mqtt_password;
   String mqtt_broker;
   int mqtt_port;
   int led_pin;
@@ -39,6 +41,8 @@ bool loadConfig(Config &config) {
 
   config.wifi_ssid = doc["wifi_ssid"] | "";
   config.wifi_password = doc["wifi_password"] | "";
+  config.mqtt_username = doc["mqtt_username"] | "";
+  config.mqtt_password = doc["mqtt_password"] | "";
   config.mqtt_broker = doc["mqtt_broker"] | "broker.hivemq.com";
   config.mqtt_port = doc["mqtt_port"] | 1883;
   config.led_pin = doc["led_pin"] | 4;

@@ -10,6 +10,7 @@
 #include "config.h"
 #include "mail.h"
 #include "webserver.h"
+#include "mqtt.h"
 
 RTC_DATA_ATTR int bootCount = 0;
 Preferences preferences;
@@ -84,6 +85,8 @@ void setup() {
     Serial.println("Soil OK");
   }
 
+  setupMqtt();
+
   if (!config.debug) {
     esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
     Serial.printf("Sleeping for %d hours\n", config.sleep_hours);
@@ -94,4 +97,5 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
+  loopMqtt();
 }

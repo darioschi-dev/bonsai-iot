@@ -3,7 +3,7 @@
     "wifi_ssid": "Wokwi-GUEST",
     "wifi_password": "",
     "mqtt_server": "broker.hivemq.com",
-    "mqtt_user": "",
+    "mqtt_username": "",
     "mqtt_password": "",
     "mqtt_port": 1883
   },
