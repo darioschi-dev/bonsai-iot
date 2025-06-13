@@ -11,6 +11,7 @@
 #include "mail.h"
 #include "webserver.h"
 #include "mqtt.h"
+#include "version_auto.h"
 
 RTC_DATA_ATTR int bootCount = 0;
 Preferences preferences;
@@ -54,6 +55,8 @@ void setup() {
   Serial.begin(115200);
   SPIFFS.begin(true);
   delay(100);
+  Serial.printf("[📦] Firmware version: %s\n", FIRMWARE_VERSION);
+  Serial.printf("[📦] Boot count: %s\n", String(bootCount));
 
   if (!loadConfig(config)) {
     Serial.println("[✖] Failed to load config.json");

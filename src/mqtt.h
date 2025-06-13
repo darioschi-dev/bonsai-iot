@@ -2,6 +2,7 @@
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include "config.h"
+#include "version_auto.h"
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -31,6 +32,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     if (message == "on") {
       digitalWrite(config.pump_pin, LOW);
       publishMqtt("bonsai/status/pump", "on", true);
+      publishMqtt("bonsai/status/pump/last_on", String(millis()));
     } else if (message == "off") {
       digitalWrite(config.pump_pin, HIGH);
       publishMqtt("bonsai/status/pump", "off", true);
@@ -67,7 +69,10 @@ void loopMqtt() {
     publishMqtt("bonsai/status/humidity", String(soilPercent));
     publishMqtt("bonsai/status/pump", digitalRead(config.pump_pin) == LOW ? "on" : "off", true);
     publishMqtt("bonsai/status/wifi", String(WiFi.RSSI()));
-    publishMqtt("bonsai/info/firmware", "v1.0.0", true);
+    publishMqtt("bonsai/status/pump/last_on", String(millis()));
+    publishMqtt("bonsai/status/battery", String(analogRead(A13)));
+    publishMqtt("bonsai/status/temp", String(0)); // placeholder
+    publishMqtt("bonsai/info/firmware", FIRMWARE_VERSION, true);
   }
 }
 

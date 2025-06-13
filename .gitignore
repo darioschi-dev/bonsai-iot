@@ -12,3 +12,6 @@ __pycache__/
 *.pyc
 
 *.env*
+
+# Auto-generated firmware version
+src/version_auto.h
