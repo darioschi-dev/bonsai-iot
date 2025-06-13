@@ -1,107 +1,70 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controllo Pompa</title>
-    <script src="https://kit.fontawesome.com/7c86fa4f5a.js" crossorigin="anonymous"></script>
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
-            margin: 0;
-        }
-        .row {
-            display: flex;
-            margin-bottom: 20px;
-            align-items: center;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 20px;
-            margin: 0 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        button.on {
-            background-color: green;
-            color: white;
-        }
-        button.off {
-            background-color: red;
-            color: white;
-        }
-        button.standby {
-            background-color: #555;
-            color: white;
-        }
-        p {
-            font-size: 18px;
-            margin: 0 10px;
-        }
-        img {
-            vertical-align: middle;
-            width: 40px;
-            height: 40px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="5;url=https://bonsai-dashboard.vercel.app/">
+  <title>Bonsai IoT – Progetto di Monitoraggio</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f1;
+      color: #333;
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      color: #2c7a4d;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      max-width: 600px;
+      margin: 1rem auto;
+    }
+    .badges {
+      margin: 1.5rem auto;
+    }
+    .badges a {
+      margin: 0 1rem;
+      display: inline-block;
+    }
+    .redirect {
+      margin-top: 2rem;
+      font-style: italic;
+    }
+    .btn {
+      background: #28a745;
+      color: white;
+      padding: 0.6rem 1.4rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .btn:hover {
+      background: #23913e;
+    }
+  </style>
 </head>
 <body>
+  <h1><i class="fas fa-seedling"></i> Bonsai IoT</h1>
+  <p>
+    Dashboard per il monitoraggio intelligente dell’umidità del terreno, con gestione remota dell’irrigazione tramite ESP32 e MQTT.
+    Progetto open source realizzato da <strong>@darioschi-dev</strong>.
+  </p>
 
-    <div class="row">
-        <button class="on">Accendi</button>
-        <button class="off">Spegni</button>
-    </div>
+  <div class="badges">
+    <a href="https://github.com/darioschi-dev/bonsai-iot" target="_blank">
+      <img src="https://img.shields.io/github/stars/darioschi-dev/bonsai-iot?style=social" alt="GitHub">
+    </a>
+    <a href="https://bonsai-dashboard.vercel.app/" target="_blank" class="btn">
+      Vai alla Dashboard
+    </a>
+  </div>
 
-    <div class="row">
-        <p>Stato pompa: 
-            <span id="pump-status">Spenta</span>
-        </p>
-        <p>Icone: 
-            <span id="pump-icon">
-            // icon from fontawesome
-                <i class="fas fa-faucet" style="font-size: 40px; color: #FA5252;"></i>
-            </span>
-        </p>
-    </div>
-
-    <div class="row">
-        <button class="standby">Standby</button>
-    </div>
-
-    <script>
-        const pumpStatus = document.getElementById('pump-status');
-        const pumpIcon = document.getElementById('pump-icon');
-
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(button => {
-            button.addEventListener('click', () => {
-                const action = button.classList.contains('on') ? 'on' : 'off';
-                fetch(`/api/pump/${action}`, { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        pumpStatus.textContent = data.status === 'on' ? 'Accesa' : 'Spenta';
-                        console.log(data.status);
-                        pumpIcon.innerHTML = data.status == 'on'
-                            ? '<i class="fas fa-faucet" style="font-size: 40px; color: #000000;"></i>'
-                            : '<i class="fas fa-faucet" style="font-size: 40px; color: #FA5252;"></i>';
-                            // ? '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=000000" />'
-                            // : '<img src="https://img.icons8.com/?size=100&id=63312&format=png&color=#FA5252" />';
-                    });
-            });
-        });
-
-        const standbyButton = document.querySelector('.standby');
-        standbyButton.addEventListener('click', () => {
-            fetch('/api/standby', { method: 'POST' });
-        });
-    </script>
+  <p class="redirect">
+    Verrai reindirizzato automaticamente alla dashboard tra qualche secondo…<br>
+    Se non succede, <a href="https://bonsai-dashboard.vercel.app/">clicca qui</a>.
+  </p>
 </body>
 </html>
