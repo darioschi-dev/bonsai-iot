@@ -1,5 +1,5 @@
 #pragma once
 
-#define FIRMWARE_VERSION "latest-1-g280479c"
-#define FIRMWARE_COMMIT  "280479c"
-#define FIRMWARE_BUILD   "2025-06-15 19:21:26"
+#define FIRMWARE_VERSION "v1.3.0"
+#define FIRMWARE_COMMIT  "66fe989"
+#define FIRMWARE_BUILD   "2025-06-15 23:55:03"

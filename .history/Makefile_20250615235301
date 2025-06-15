@@ -82,7 +82,7 @@ requirements:
 # Esegue tutti gli script Python in ./scripts
 test-scripts:
 	@echo "🧪 Test script Python"
-	@python3 scripts/setup_config.py || (echo "❌ Errore in setup_config.py" && exit 1)
-	@python3 scripts/generate_version.py || (echo "❌ Errore in generate_version.py" && exit 1)
-	@echo "⏭️  uploadfs.py è uno script interno PlatformIO, non testabile direttamente"
-
+	@python3 scripts/setup_config.py || { echo "❌ Errore in setup_config.py"; exit 1; }
+	@python3 scripts/generate_version.py || { echo "❌ Errore in generate_version.py"; exit 1; }
+	@python3 scripts/uploadfs.py || { echo "❌ Errore in uploadfs.py"; exit 1; }
+	@echo "✅ Tutti gli script sono stati eseguiti correttamente"

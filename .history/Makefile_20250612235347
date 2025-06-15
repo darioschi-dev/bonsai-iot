@@ -69,20 +69,3 @@ test:
 	if [ -f .env ]; then set -a && . .env && set +a; fi && \
 	wokwi-cli . && \
 	( open "https://wokwi.com/projects/433590215533216769" || xdg-open "https://wokwi.com/projects/433590215533216769" || echo "🌐 Apri manualmente: https://wokwi.com/projects/433590215533216769" )
-
-# Genera requirements.txt con pipreqs (se installato)
-requirements:
-	@echo "📦 Generazione requirements.txt..."
-	@if ! command -v pipreqs >/dev/null 2>&1; then \
-		echo "❌ pipreqs non installato. Installa con: pip install pipreqs"; \
-		exit 1; \
-	fi
-	pipreqs --force --encoding=utf-8 --ignore .pio,.venv
-
-# Esegue tutti gli script Python in ./scripts
-test-scripts:
-	@echo "🧪 Test script Python"
-	@python3 scripts/setup_config.py || (echo "❌ Errore in setup_config.py" && exit 1)
-	@python3 scripts/generate_version.py || (echo "❌ Errore in generate_version.py" && exit 1)
-	@echo "⏭️  uploadfs.py è uno script interno PlatformIO, non testabile direttamente"
-
