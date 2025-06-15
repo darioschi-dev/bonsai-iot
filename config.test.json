@@ -1,0 +1,22 @@
+{
+  "wifi_ssid": "Wokwi-GUEST",
+  "wifi_password": "",
+  "mqtt_broker": "broker.hivemq.com",
+  "mqtt_username": "",
+  "mqtt_password": "",
+  "mqtt_port": 1883,
+  "led_pin": 4,
+  "sensor_pin": 32,
+  "pump_pin": 26,
+  "relay_pin": 27,
+  "moisture_threshold": 25,
+  "pump_duration": 5,
+  "measurement_interval": 1800000,
+  "debug": true,
+  "use_pump": true,
+  "sleep_hours": 0,
+  "use_dhcp": true,
+  "ip_address": "192.168.1.150",
+  "gateway": "192.168.1.1",
+  "subnet": "255.255.255.0"
+}
