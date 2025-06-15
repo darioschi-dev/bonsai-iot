@@ -10,6 +10,7 @@
             "includePath": [
                 "/Users/amministratore/Documents/PlatformIO/Projects/bonsai-iot/include",
                 "/Users/amministratore/Documents/PlatformIO/Projects/bonsai-iot/src",
+                "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                 "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                 "/Users/amministratore/Documents/PlatformIO/Projects/bonsai-iot/.pio/libdeps/esp32-prod/ArduinoJson/src",
                 "/Users/amministratore/Documents/PlatformIO/Projects/bonsai-iot/.pio/libdeps/esp32-prod/ESP Async WebServer/src",
@@ -242,7 +243,6 @@
                 "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/SimpleBLE/src",
                 "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/Ticker/src",
                 "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
-                "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                 "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                 ""
             ],
@@ -251,6 +251,7 @@
                 "path": [
                     "/Users/amministratore/Documents/PlatformIO/Projects/bonsai-iot/include",
                     "/Users/amministratore/Documents/PlatformIO/Projects/bonsai-iot/src",
+                    "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                     "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
                     "/Users/amministratore/Documents/PlatformIO/Projects/bonsai-iot/.pio/libdeps/esp32-prod/ArduinoJson/src",
                     "/Users/amministratore/Documents/PlatformIO/Projects/bonsai-iot/.pio/libdeps/esp32-prod/ESP Async WebServer/src",
@@ -483,7 +484,6 @@
                     "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/SimpleBLE/src",
                     "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/Ticker/src",
                     "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
-                    "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                     "/Users/amministratore/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                     ""
                 ]
@@ -511,6 +511,10 @@
             ],
             "cStandard": "gnu99",
             "cppStandard": "gnu++11",
+            "forcedInclude": [
+                "src/version_auto.h",
+                ""
+            ],
             "compilerPath": "/Users/amministratore/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-gcc",
             "compilerArgs": [
                 "-mlongcalls",

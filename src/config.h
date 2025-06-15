@@ -17,6 +17,13 @@ struct Config {
   bool debug;
   bool use_pump;
   int sleep_hours;
+  int relay_pin;
+  int pump_duration;
+  int measurement_interval;
+  String ip_address;
+  String gateway;
+  String subnet;
+  bool use_dhcp;
 };
 
 bool loadConfig(Config &config) {
@@ -52,7 +59,21 @@ bool loadConfig(Config &config) {
   config.debug = doc["debug"] | false;
   config.use_pump = doc["use_pump"] | true;
   config.sleep_hours = doc["sleep_hours"] | 0;
-
+  config.relay_pin = doc["relay_pin"] | 27;
+  config.pump_duration = doc["pump_duration"] | 5;
+  config.measurement_interval = doc["measurement_interval"] | 1800000;
+  config.use_dhcp = doc["use_dhcp"] | true;
+  config.ip_address = doc["ip_address"] | "";
+  config.gateway = doc["gateway"] | "";
+  config.subnet = doc["subnet"] | "";
+  if (!config.use_dhcp) {
+    if (config.ip_address.isEmpty() || config.gateway.isEmpty() || config.subnet.isEmpty()) {
+      Serial.println("[❌] Configurazione statica IP incompleta.");
+      return false;
+    }
+  }
+  file.close();
+  // Log the loaded configuration
   Serial.println("[✅] Configurazione caricata con successo:");
   serializeJsonPretty(doc, Serial);
   Serial.println();

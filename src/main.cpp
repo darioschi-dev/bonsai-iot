@@ -12,6 +12,7 @@
 #include "webserver.h"
 #include "mqtt.h"
 #include "version_auto.h"
+#include "config_api.h"
 
 RTC_DATA_ATTR int bootCount = 0;
 Preferences preferences;
