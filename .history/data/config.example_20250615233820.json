@@ -12,7 +12,7 @@
   "moisture_threshold": 25,
   "pump_duration": 5,
   "measurement_interval": 1800000,
-  "debug": false,
+  "debug": true,
   "use_pump": true,
   "sleep_hours": 0,
   "use_dhcp": true,

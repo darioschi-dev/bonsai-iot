@@ -1,0 +1,15 @@
+{
+  "wifi_ssid": "D-Link-2BE3C3",
+  "wifi_password": "K3RazVjHpN",
+  "mqtt_broker": "6804c12a8e254e5c9f0d45b0ea9c0b2a.s1.eu.hivemq.cloud",
+  "mqtt_username": "esp32",
+  "mqtt_password": "Bonsai-Mqtt-Dashboard2025",
+  "mqtt_port": 8883,
+  "led_pin": 4,
+  "sensor_pin": 32,
+  "pump_pin": 26,
+  "moisture_threshold": 20,
+  "debug": false,
+  "use_pump": true,
+  "sleep_hours": 8
+}

@@ -1,17 +1,39 @@
+# VSCode
+.vscode/
+*.code-workspace
+
 # PlatformIO
 .pio/
-.vscode/
-.DS_Store
+.pioenvs/
+.piolibdeps/
+platformio.ini.bak
+*.elf
+*.bin
+*.map
 
-# SPIFFS build
+# SPIFFS data
 data/config.json
+data/config.test.json
 data/config.prod.json
 
 # Python
+.venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.env
+*.env
 
-*.env*
+# MacOS
+.DS_Store
 
-# Auto-generated firmware version
-src/version_auto.h
+# Log e temporanei
+*.log
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Wokwi
+wokwi.toml.bak
