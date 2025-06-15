@@ -30,6 +30,9 @@ jobs:
       - name: 🛠️ Generate version_auto.h
         run: python scripts/generate_version.py
 
+      - name: 📄 Copy index.html
+        run: cp index.html data/index.html
+
       - name: 🚀 Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
