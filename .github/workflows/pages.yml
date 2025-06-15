@@ -24,6 +24,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: ✅ Ensure config.example.json exists
+        run: |
+          mkdir -p data
+          if [ ! -f data/config.example.json ]; then
+            echo '{
+              "wifi_ssid": "dummy",
+              "wifi_password": "dummy",
+              "mqtt_broker": "dummy",
+              "mqtt_username": "dummy",
+              "mqtt_password": "dummy",
+              "mqtt_port": 1883
+            }' > data/config.example.json
+          fi
+
       - name: 🛠️ Generate config.json
         run: python scripts/setup_config.py
 
