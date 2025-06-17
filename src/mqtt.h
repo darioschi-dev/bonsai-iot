@@ -106,7 +106,7 @@ void loopMqtt()
 
     // Nota: `last_on` viene aggiornato **solo lato frontend** quando si invia un comando manuale via API.
     // Se vuoi anche registrare `last_on` da ESP32 in automatico, va gestito lato codice pompa.
-    publishMqtt("bonsai/status/pump/last_on", String(now)); // opzionale o placeholder
+    publishMqtt("bonsai/status/pump/last_on", String(time(nullptr) * 1000));
   }
 }
 

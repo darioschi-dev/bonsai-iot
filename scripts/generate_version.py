@@ -4,9 +4,11 @@ import subprocess
 import datetime
 from pathlib import Path
 import re
-import sys
 
-use_next_patch = "USE_NEXT_VERSION" in sys.argv
+import os
+
+use_next_patch = os.environ.get("USE_NEXT_VERSION") == "1"
+
 
 def safe_git_command(command, fallback):
     try:
@@ -25,9 +27,6 @@ def get_latest_semver_tag():
 def bump_patch(version):
     major, minor, patch = map(int, version.lstrip("v").split("."))
     return f"v{major}.{minor}.{patch + 1}"
-
-# Verifica se c'è "--next" tra gli argomenti
-use_next_patch = "--next" in sys.argv
 
 # Determina la versione
 latest_tag = get_latest_semver_tag()

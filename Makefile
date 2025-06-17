@@ -10,7 +10,10 @@ all: build upload uploadfs monitor
 
 # Compila firmware
 build:
-	pio run -e $(ENV)
+	@echo "🔧 Compilazione per ambiente: $(ENV)"
+	USE_NEXT_VERSION=1 pio run -e $(ENV)
+
+	pio run -e $(ENV) --project-option="custom_flags=USE_NEXT_VERSION"
 
 # Upload firmware (salta in test)
 upload:
