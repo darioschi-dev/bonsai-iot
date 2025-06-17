@@ -9,6 +9,7 @@
   "sensor_pin": 32,
   "pump_pin": 26,
   "relay_pin": 27,
+  "battery_pin": 34,
   "moisture_threshold": 25,
   "pump_duration": 5,
   "measurement_interval": 1800000,
