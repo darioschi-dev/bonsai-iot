@@ -1,24 +1,43 @@
+#!/usr/bin/env python3
+
 import subprocess
 import datetime
 from pathlib import Path
+import re
+import sys
 
-# Funzione per eseguire comandi shell con fallback
+use_next_patch = "USE_NEXT_VERSION" in sys.argv
+
 def safe_git_command(command, fallback):
     try:
         return subprocess.check_output(command).decode().strip()
     except:
         return fallback
 
-# Ottieni l'ultima versione da tag, oppure fallback a v0.0.0
-version = safe_git_command(["git", "describe", "--tags", "--always"], "v0.0.0")
+def get_latest_semver_tag():
+    tags = safe_git_command(["git", "tag"], "")
+    version_tags = [tag for tag in tags.splitlines() if re.match(r"^v\d+\.\d+\.\d+$", tag)]
+    if not version_tags:
+        return "v0.0.0"
+    version_tags.sort(key=lambda s: list(map(int, s.lstrip("v").split("."))))
+    return version_tags[-1]
 
-# Ottieni l'hash short dell'ultimo commit
+def bump_patch(version):
+    major, minor, patch = map(int, version.lstrip("v").split("."))
+    return f"v{major}.{minor}.{patch + 1}"
+
+# Verifica se c'è "--next" tra gli argomenti
+use_next_patch = "--next" in sys.argv
+
+# Determina la versione
+latest_tag = get_latest_semver_tag()
+version = bump_patch(latest_tag) if use_next_patch else latest_tag
+
+# Info commit e build time
 commit = safe_git_command(["git", "rev-parse", "--short", "HEAD"], "unknown")
-
-# Timestamp build (locale)
 build_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Contenuto del file da generare
+# Genera contenuto
 content = f"""#pragma once
 
 #define FIRMWARE_VERSION "{version}"
@@ -26,12 +45,16 @@ content = f"""#pragma once
 #define FIRMWARE_BUILD   "{build_time}"
 """
 
-# Percorso completo del file da scrivere
+# Scrivi su file
 header_path = Path("src/version_auto.h")
-
-# Scrivi solo se è cambiato
 if not header_path.exists() or header_path.read_text() != content:
     print(f"[INFO] Generating version_auto.h with version {version}, commit {commit}")
     header_path.write_text(content)
 else:
     print(f"[INFO] version_auto.h already up to date.")
+
+# Se richiesto, crea e push il nuovo tag
+if use_next_patch:
+    print(f"[INFO] Tagging and pushing: {version}")
+    subprocess.run(["git", "tag", version])
+    subprocess.run(["git", "push", "origin", version])

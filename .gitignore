@@ -38,4 +38,5 @@ __pycache__/
 # Wokwi
 wokwi.toml.bak
 
-.history.git_backup/
+# Cronologia editor e backup Git manuali
+.history/
