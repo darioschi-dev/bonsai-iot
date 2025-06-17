@@ -1,0 +1,41 @@
+# VSCode
+.vscode/
+*.code-workspace
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+platformio.ini.bak
+*.elf
+*.bin
+*.map
+
+# SPIFFS data
+data/config.json
+data/config.test.json
+data/config.prod.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.env
+
+# MacOS
+.DS_Store
+
+# Log e temporanei
+*.log
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Wokwi
+wokwi.toml.bak
+
+.history.git_backup/
