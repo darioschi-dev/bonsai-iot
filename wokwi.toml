@@ -1,0 +1,37 @@
+# Wokwi Configuration File
+# Reference: https://docs.wokwi.com/vscode/project-config
+[wokwi]
+version = 1
+projectId = "433590932279013377"
+firmware = '.pio/build/esp32-test/firmware.bin'
+elf = '.pio/build/esp32-test/firmware.elf'
+
+
+[[net]]
+ssid = "Wokwi-GUEST"
+password = ""
+
+[[components]]
+type = "soil-moisture"
+pin = 32
+name = "Soil Sensor"
+
+[[components]]
+type = "button"
+pin = 0
+name = "Reset Button"
+
+[[components]]
+type = "led"
+pin = 4
+name = "Status LED"
+
+[[components]]
+type = "generic"
+pin = 26
+name = "Pump Relay"
+
+[fs]
+image = ".pio/build/esp32-test/spiffs.bin"
+mount = true
+mount_path = "/spiffs"
