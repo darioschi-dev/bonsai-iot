@@ -1,6 +1,9 @@
 {
   "wifi_ssid": "YOUR_SSID",
   "wifi_password": "YOUR_PASSWORD",
+  "firmware_version": "1.0.0",
+  "config_version": "20250728",
+  "update_server": "https://update.tuoserver.it",
   "mqtt_broker": "your.mqtt.broker",
   "mqtt_username": "your-mqtt-user",
   "mqtt_password": "your-mqtt-password",
