@@ -1,0 +1,57 @@
+name: Build & Upload ESP32 Firmware OTA
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: pio run -e esp32-prod
+
+      # Artifact utile per debug / download manuale
+      - name: Upload firmware as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-prod-${{ github.sha }}.bin
+          path: .pio/build/esp32-prod/firmware.bin
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload firmware to OTA server
+        env:
+          OTA_UPLOAD_URL: ${{ secrets.OTA_UPLOAD_URL }}   # es: https://bonsai-iot-update.darioschiavano.it/upload-firmware
+          OTA_TOKEN:      ${{ secrets.OTA_TOKEN }}        # opzionale
+        run: |
+          set -euo pipefail
+          if [ -z "${OTA_UPLOAD_URL:-}" ]; then
+            echo "❌ OTA_UPLOAD_URL secret mancante"; exit 1
+          fi
+          VERSION=$(date +%Y%m%d_%H%M)
+          echo "➡️  Upload verso: ${OTA_UPLOAD_URL}"
+          echo "➡️  Version: ${VERSION}"
+
+          AUTH=()
+          if [ -n "${OTA_TOKEN:-}" ]; then
+            AUTH=(-H "Authorization: Bearer ${OTA_TOKEN}")
+          fi
+
+          curl --fail-with-body -sS -m 60 -L \
+               "${AUTH[@]}" \
+               -F "firmware=@.pio/build/esp32-prod/firmware.bin" \
+               -F "version=${VERSION}" \
+               "${OTA_UPLOAD_URL}" \
+               -w "\nHTTP %{http_code}\n"
