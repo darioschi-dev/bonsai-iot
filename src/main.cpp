@@ -23,6 +23,10 @@
 // DEFINIZIONE reale della variabile globale
 Config config;
 
+WiFiClient *plainClient = nullptr;
+WiFiClientSecure *secureClient = nullptr;
+PubSubClient mqttClient; // definizione globale vera
+
 static UpdateManager updater;
 static FirmwareUpdateStrategy* fwStrategy = nullptr;
 
