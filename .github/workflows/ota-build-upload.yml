@@ -1,0 +1,36 @@
+name: Build & Upload ESP32 Firmware OTA
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Clona repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2) Installa Python e PlatformIO
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      # 3) Compila firmware
+      - name: Build firmware
+        run: pio run -e esp32-prod
+
+      # 4) Upload via API HTTP al server OTA
+      - name: Upload firmware to OTA server
+        run: |
+          VERSION=$(date +%Y%m%d_%H%M)
+          curl -F "file=@.pio/build/esp32-prod/firmware.bin" \
+               -F "version=$VERSION" \
+               "${{ secrets.OTA_UPLOAD_URL }}"

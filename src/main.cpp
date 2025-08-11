@@ -18,9 +18,31 @@
 #include "update/FirmwareUpdateStrategy.h"
 #include "update/ConfigUpdateStrategy.h"
 
+#include "config.h"
+
+// DEFINIZIONE reale della variabile globale
+Config config;
+
+static UpdateManager updater;
+static FirmwareUpdateStrategy* fwStrategy = nullptr;
+
+// chiamata dal callback MQTT (dichiarata extern in mqtt.h)
+void otaCheckNow() {
+  if (!fwStrategy) return;
+  if (fwStrategy->checkForUpdate()) {
+    if (fwStrategy->performUpdate()) {
+      Serial.println("✅ OTA eseguito");
+    } else {
+      Serial.println("❌ OTA fallito");
+    }
+  } else {
+    if (config.debug) Serial.println("ℹ️ Nessun OTA disponibile");
+  }
+}
+
+
 RTC_DATA_ATTR int bootCount = 0;
 Preferences preferences;
-Config config;
 
 int soilValue = 0;
 int soilPercent = 0;
@@ -71,11 +93,14 @@ void setup() {
 
   setup_wifi();
 
-  // 🔄 Check firmware & config updates
-  UpdateManager updater;
-  updater.registerStrategy(new FirmwareUpdateStrategy());
+    // 🔄 Check firmware & config updates
+  fwStrategy = new FirmwareUpdateStrategy();
+  updater.registerStrategy(fwStrategy);
   updater.registerStrategy(new ConfigUpdateStrategy());
-  updater.runAll();
+  updater.runAll();  // check subito all’avvio
+  if (config.debug) {
+    Serial.println("[🔄] Update check complete");
+  }
 
   pinMode(config.led_pin, OUTPUT);
   pinMode(config.sensor_pin, INPUT);

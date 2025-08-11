@@ -3,6 +3,9 @@
 #include <HTTPClient.h>
 #include <SPIFFS.h>
 
+// Dichiari che esiste una variabile globale config definita altrove
+extern Config config;
+
 bool ConfigUpdateStrategy::checkForUpdate() {
     String url = config.update_server + "/config/check?version=" + config.config_version;
     HTTPClient http;

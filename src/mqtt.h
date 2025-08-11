@@ -4,6 +4,7 @@
 #include "config.h"
 #include "version_auto.h"
 #include "config_api.h"
+#include <WiFi.h>
 
 WiFiClientSecure wifiClient; // TLS client
 PubSubClient mqttClient(wifiClient);
@@ -14,6 +15,15 @@ const unsigned long mqttInterval = 15000; // 15 secondi
 extern Config config;
 extern int soilValue;
 extern int soilPercent;
+// DeviceId globale
+static String deviceId;
+
+static void setupDeviceId() {
+  deviceId = WiFi.macAddress();  // "A4:C1:38:.."
+  deviceId.replace(":", "");
+  deviceId.toLowerCase();        // "a4c138......"
+  deviceId = "bonsai-" + deviceId;
+}
 
 void publishMqtt(const char *topic, const String &payload, bool retain = false)
 {
@@ -55,6 +65,15 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
       Serial.println("[MQTT] Comando reboot ricevuto");
     }
     ESP.restart();
+  }
+  else if (String(topic) == "bonsai/ota/available" || String(topic) == ("bonsai/ota/force/" + deviceId))
+  {
+    if (config.debug)
+      Serial.println("[MQTT] OTA trigger ricevuto");
+    // chiama una funzione che invoca il check della FirmwareUpdateStrategy
+    // la dichiariamo di seguito come forward:
+    extern void triggerFirmwareCheck();
+    triggerFirmwareCheck();
   }
   else
   {
@@ -120,7 +139,22 @@ void loopMqtt()
 
 void setupMqtt()
 {
+  setupDeviceId();
+  mqttClient.setCallback(mqttCallback);
+  connectMqtt();
+
+  // comandi esistenti
+  mqttClient.subscribe("bonsai/command/pump");
+  mqttClient.subscribe("bonsai/command/reboot");
   mqttClient.subscribe("bonsai/command/config/update");
   mqttClient.subscribe("bonsai/command/restart");
-  connectMqtt();
+
+  // 🔔 OTA announce (retain) + force mirato
+  mqttClient.subscribe("bonsai/ota/available");
+
+  String forceTopic;
+  forceTopic.reserve(64);
+  forceTopic += F("bonsai/ota/force/");
+  forceTopic += deviceId;
+  mqttClient.subscribe(forceTopic.c_str());
 }
