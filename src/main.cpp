@@ -30,6 +30,8 @@ PubSubClient mqttClient; // definizione globale vera
 static UpdateManager updater;
 static FirmwareUpdateStrategy* fwStrategy = nullptr;
 
+String deviceId = String(ESP.getChipModel());
+
 // chiamata dal callback MQTT (dichiarata extern in mqtt.h)
 void otaCheckNow() {
   if (!fwStrategy) return;

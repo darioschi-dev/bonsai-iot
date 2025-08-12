@@ -18,7 +18,7 @@ extern Config config;
 extern int soilValue;
 extern int soilPercent;
 
-static String deviceId;
+extern String deviceId;
 
 // Puntatori client MQTT
 extern WiFiClient *plainClient;
