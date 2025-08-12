@@ -45,3 +45,4 @@ struct Config
 };
 
 bool loadConfig(Config &config);
+bool saveConfig(const Config &cfg);

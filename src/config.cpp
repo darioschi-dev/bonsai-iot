@@ -69,3 +69,43 @@ bool loadConfig(Config &config)
 
   return true;
 }
+
+bool saveConfig(const Config &cfg) {
+  File file = SPIFFS.open("/config.json", "w");
+  if (!file) {
+    Serial.println("[❌] Impossibile aprire config.json per scrittura");
+    return false;
+  }
+
+  StaticJsonDocument<1024> doc;
+  doc["wifi_ssid"]            = cfg.wifi_ssid;
+  doc["wifi_password"]        = cfg.wifi_password;
+  doc["mqtt_broker"]          = cfg.mqtt_broker;
+  doc["mqtt_port"]            = cfg.mqtt_port;
+  doc["mqtt_username"]        = cfg.mqtt_username;
+  doc["mqtt_password"]        = cfg.mqtt_password;
+  doc["sensor_pin"]           = cfg.sensor_pin;
+  doc["pump_pin"]             = cfg.pump_pin;
+  doc["relay_pin"]            = cfg.relay_pin;
+  doc["battery_pin"]          = cfg.battery_pin;
+  doc["moisture_threshold"]   = cfg.moisture_threshold;
+  doc["pump_duration"]        = cfg.pump_duration;
+  doc["measurement_interval"] = cfg.measurement_interval;
+  doc["use_pump"]              = cfg.use_pump;
+  doc["debug"]                 = cfg.debug;
+  doc["sleep_hours"]           = cfg.sleep_hours;
+  doc["use_dhcp"]              = cfg.use_dhcp;
+  doc["ip_address"]            = cfg.ip_address;
+  doc["gateway"]               = cfg.gateway;
+  doc["subnet"]                = cfg.subnet;
+
+  if (serializeJson(doc, file) == 0) {
+    Serial.println("[❌] Errore scrittura JSON su file");
+    file.close();
+    return false;
+  }
+
+  file.close();
+  Serial.println("[✅] Config salvata su SPIFFS");
+  return true;
+}
