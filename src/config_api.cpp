@@ -103,7 +103,7 @@ bool jsonToConfig(const String& json, Config& out) {
   pickInt("battery_pin", out.battery_pin);
   pickInt("moisture_threshold", out.moisture_threshold);
   pickInt("pump_duration", out.pump_duration);
-  pickLong("measurement_interval", out.measurement_interval);
+  pickInt("measurement_interval", out.measurement_interval);
   pickBool("debug", out.debug);
   pickBool("use_pump", out.use_pump);
   pickInt("sleep_hours", out.sleep_hours);
@@ -121,23 +121,6 @@ bool saveConfigStruct(const Config& c) {
   return writeFileAtomic(CONFIG_PATH, json);
 }
 
-bool loadConfig(Config& out) {
-  if (!FS_IMPL.exists(CONFIG_PATH)) {
-    out = defaultConfig();
-    return false;
-  }
-  String json;
-  if (!readFileToString(CONFIG_PATH, json)) {
-    out = defaultConfig();
-    return false;
-  }
-  out = defaultConfig();
-  if (!jsonToConfig(json, out)) {
-    out = defaultConfig();
-    return false;
-  }
-  return true;
-}
 
 // --- Confronto MQTT ---
 bool mqttCriticalChanged(const Config& a, const Config& b) {
