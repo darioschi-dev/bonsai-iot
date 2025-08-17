@@ -19,6 +19,9 @@
 #include "update/ConfigUpdateStrategy.h"
 
 #include "config.h"
+extern "C" {
+  #include "esp_ota_ops.h"
+}
 
 // DEFINIZIONE reale della variabile globale
 Config config;
@@ -31,6 +34,12 @@ static UpdateManager updater;
 static FirmwareUpdateStrategy* fwStrategy = nullptr;
 
 String deviceId = String(ESP.getChipModel());
+
+static String currentAppVersion() {
+  const esp_app_desc_t* app = esp_ota_get_app_description();
+  if (app && app->version[0] != '\0') return String(app->version);
+  return String(FIRMWARE_VERSION); // fallback generato da generate_version.py
+}
 
 // chiamata dal callback MQTT (dichiarata extern in mqtt.h)
 void otaCheckNow() {
@@ -88,8 +97,15 @@ void setup() {
   Serial.begin(115200);
   SPIFFS.begin(true);
   delay(100);
-  Serial.printf("[📦] Firmware version: %s\n", FIRMWARE_VERSION);
-  Serial.printf("[📦] Boot count: %s\n", String(bootCount));
+
+  // 🔒 marca valida (importantissimo dopo un OTA riuscito)
+  esp_ota_mark_app_valid_cancel_rollback();
+
+  Serial.printf("[📦] Firmware version: %s\n", currentAppVersion().c_str());
+
+  // bootCount è RTC_DATA_ATTR: incrementa PRIMA di stamparlo
+  ++bootCount;
+  Serial.printf("[📦] Boot count: %d\n", bootCount);
 
   if (!loadConfig(config)) {
     Serial.println("[✖] Failed to load config.json");
@@ -99,14 +115,12 @@ void setup() {
 
   setup_wifi();
 
-    // 🔄 Check firmware & config updates
+  // 🔄 Check aggiornamenti (una volta al boot)
   fwStrategy = new FirmwareUpdateStrategy();
   updater.registerStrategy(fwStrategy);
   updater.registerStrategy(new ConfigUpdateStrategy());
-  updater.runAll();  // check subito all’avvio
-  if (config.debug) {
-    Serial.println("[🔄] Update check complete");
-  }
+  updater.runAll();
+  if (config.debug) Serial.println("[🔄] Update check complete");
 
   pinMode(config.led_pin, OUTPUT);
   pinMode(config.sensor_pin, INPUT);
@@ -115,9 +129,6 @@ void setup() {
 
   ArduinoOTA.begin();
   setup_webserver(config.pump_pin);
-
-  ++bootCount;
-  Serial.printf("Boot count: %d\n", bootCount);
 
   int perc = readSoil();
   if (perc > config.moisture_threshold) {

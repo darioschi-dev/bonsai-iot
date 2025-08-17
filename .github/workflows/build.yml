@@ -3,13 +3,32 @@ name: Build & Upload ESP32 Firmware OTA
 on:
   push:
     branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      version_mode:
+        description: "Versioning mode"
+        type: choice
+        required: true
+        default: combined
+        options:
+          - semver
+          - timestamp
+          - combined
+      force_version:
+        description: "Override version (e.g., v1.2.3 or 202508171230 or v1.2.3+202508171230)"
+        type: string
+        required: false
+        default: ""
 
 jobs:
   build-upload:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (with tags)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # serve per leggere i tag
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -29,8 +48,51 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
-      - name: Build firmware (esp32-prod)
-        run: pio run -e esp32-prod
+      - name: Compute VERSION (semver / timestamp / combined)
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Inputs (solo con workflow_dispatch)
+          MODE="${{ github.event.inputs.version_mode || '' }}"
+          FORCE="${{ github.event.inputs.force_version || '' }}"
+
+          # Se non è stato indicato nulla, default combined
+          if [ -z "$MODE" ]; then MODE="combined"; fi
+
+          # Forza versione se richiesta
+          if [ -n "$FORCE" ]; then
+            VERSION="$FORCE"
+          else
+            # Ultimo tag semver (o v0.0.0 se assente)
+            TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
+            if [ -z "$TAG" ]; then TAG="v0.0.0"; fi
+
+            # Timestamp compatto (niente underscore)
+            TS=$(date +%Y%m%d%H%M)
+
+            case "$MODE" in
+              semver)    VERSION="$TAG" ;;
+              timestamp) VERSION="$TS" ;;
+              combined)  VERSION="${TAG}+${TS}" ;;
+              *)         VERSION="${TAG}+${TS}" ;;
+            esac
+          fi
+
+          echo "VERSION=$VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "mode=$MODE"       >> $GITHUB_OUTPUT
+
+      - name: Build firmware (esp32-prod) with VERSION override
+        run: |
+          set -euo pipefail
+          echo "Building with VERSION_OVERRIDE=${VERSION}"
+          VERSION_OVERRIDE="${VERSION}" pio run -e esp32-prod
+
+          # Mostra la versione effettiva inclusa nel bin (generate_version.py)
+          USED_VER=$(grep -oP '(?<=#define FIRMWARE_VERSION ")[^"]+' src/version_auto.h || true)
+          echo "FIRMWARE_VERSION in binary: ${USED_VER:-unknown}"
 
       - name: Upload firmware as artifact
         uses: actions/upload-artifact@v4
@@ -40,17 +102,21 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: (Optional) Create version.txt
+        run: echo "$VERSION" > version.txt
+
       - name: Upload firmware to OTA server
         env:
           OTA_UPLOAD_URL: ${{ secrets.OTA_UPLOAD_URL }}   # es: https://.../upload-firmware
           OTA_TOKEN:      ${{ secrets.OTA_TOKEN }}        # opzionale
+          VERSION:        ${{ env.VERSION }}
         run: |
           set -euo pipefail
 
           if [ -z "${OTA_UPLOAD_URL:-}" ]; then
             echo "❌ OTA_UPLOAD_URL secret mancante"; exit 1
           fi
-          VERSION=$(date +%Y%m%d_%H%M)
+
           echo "➡️  Upload verso: ${OTA_UPLOAD_URL}"
           echo "➡️  Version: ${VERSION}"
 
@@ -59,9 +125,11 @@ jobs:
             AUTH=(-H "Authorization: Bearer ${OTA_TOKEN}")
           fi
 
-          curl --fail-with-body -sS -m 90 -L \
+          # Invia sia 'version' (per compatibilità) sia 'version_file' (se il backend lo supporta)
+          curl --fail-with-body -sS -m 120 -L \
                "${AUTH[@]}" \
                -F "firmware=@.pio/build/esp32-prod/firmware.bin;type=application/octet-stream;filename=firmware.bin" \
                -F "version=${VERSION}" \
+               -F "version_file=@version.txt;type=text/plain;filename=version.txt" \
                "${OTA_UPLOAD_URL}" \
                -w "\nHTTP %{http_code}\n"

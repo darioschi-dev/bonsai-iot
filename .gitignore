@@ -2,7 +2,7 @@
 .vscode/
 *.code-workspace
 
-# PlatformIO
+# PlatformIO build
 .pio/
 .pioenvs/
 .piolibdeps/
@@ -10,11 +10,17 @@ platformio.ini.bak
 *.elf
 *.bin
 *.map
+*.hex
 
-# SPIFFS data
+# SPIFFS / LittleFS data (config locali)
 data/config.json
 data/config.test.json
 data/config.prod.json
+
+# OTA / Upload files
+uploads/
+firmware/
+*.ota.bin
 
 # Python
 .venv/
@@ -23,7 +29,7 @@ __pycache__/
 *.pyo
 *.pyd
 .env
-*.env
+*.env.*
 
 # MacOS
 .DS_Store
@@ -35,8 +41,8 @@ __pycache__/
 *.swp
 *.swo
 
-# Wokwi
+# Wokwi backup
 wokwi.toml.bak
 
-# Cronologia editor e backup Git manuali
+# Cronologia editor e backup manuali
 .history/
