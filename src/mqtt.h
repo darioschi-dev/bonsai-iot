@@ -5,7 +5,6 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include "config.h"
-#include "version_auto.h"
 #include "config_api.h"
 #include <FS.h>
 #include <SPIFFS.h>

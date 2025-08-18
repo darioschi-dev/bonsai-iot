@@ -3,9 +3,10 @@
 #include <ArduinoJson.h>
 #include <FS.h>
 #include <SPIFFS.h>
+#include "../config.h"
+#include "../config_api.h" 
 
-extern struct Config config;
-extern void saveConfigFromJson(const String& json);
+extern Config config;
 
 bool ConfigUpdateStrategy::checkForUpdate() {
     String body;
@@ -80,6 +81,6 @@ bool ConfigUpdateStrategy::performUpdate() {
         return false;
     }
 
-    saveConfigFromJson(newJson); // salva su SPIFFS e riavvia
+    applyAndPersistConfigJson(newJson); // salva su SPIFFS e riavvia
     return true;
 }

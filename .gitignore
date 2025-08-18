@@ -50,3 +50,4 @@ wokwi.toml.bak
 # never track git backups
 .git_backup/
 .git.bak/
+src/version_auto.h

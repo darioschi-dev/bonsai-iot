@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <Wire.h>
 #include <ESPmDNS.h>
@@ -11,7 +12,6 @@
 #include "mail.h"
 #include "webserver.h"
 #include "mqtt.h"
-#include "version_auto.h"
 #include "config_api.h"
 
 #include "update/UpdateManager.h"
@@ -62,7 +62,7 @@ void otaCheckNow() {
 
 
 RTC_DATA_ATTR int bootCount = 0;
-Preferences preferences;
+Preferences prefs;
 
 int soilValue = 0;
 int soilPercent = 0;
@@ -108,6 +108,14 @@ void setup() {
 
   Serial.printf("[📦] Firmware version: %s\n", currentAppVersion().c_str());
 
+  // 🔧 Patch minima: crea namespace "bonsai" se non esiste
+  if (prefs.begin("bonsai", false)) {   // RW: se manca lo crea
+    if (!prefs.isKey("fw_ver")) {
+      prefs.putString("fw_ver", currentAppVersion()); 
+    }
+    prefs.end();
+  }
+  
   // bootCount è RTC_DATA_ATTR: incrementa PRIMA di stamparlo
   ++bootCount;
   Serial.printf("[📦] Boot count: %d\n", bootCount);

@@ -5,7 +5,6 @@
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 #include "../config.h"
-#include "../version_auto.h"
 
 extern "C" {
   #include "esp_ota_ops.h"
@@ -49,12 +48,12 @@ static String currentAppVersion() {
 }
 
 // versione “sospetta” => salta update per evitare loop
-static bool isBadVersion_(const String& v) {
+bool FirmwareUpdateStrategy::isBadVersion_(const String& v) {
   return v.length() == 0 || v == "v0.0.0" || v == "0.0.0" || v == "unknown";
 }
 
 // confronto semver “x.y.z”; se non è semver, fallback confronto stringhe
-static int compareVersions_(const String& a, const String& b) {
+int FirmwareUpdateStrategy::compareVersions_(const String& a, const String& b) {
   int a1=0,a2=0,a3=0, b1=0,b2=0,b3=0;
   int gotA = sscanf(a.c_str(), "%d.%d.%d", &a1,&a2,&a3);
   int gotB = sscanf(b.c_str(), "%d.%d.%d", &b1,&b2,&b3);
@@ -76,45 +75,57 @@ static String computeManifestUrl() {
 }
 
 // Scarica manifest e ne estrae version + url
-static bool fetchManifest(String& outVersion, String& outUrl) {
-  const String manifestUrl = computeManifestUrl();
-  if (manifestUrl.isEmpty()) return false;
+bool fetchManifest(String& outVersion, String& outBinUrl) {
+    if (!WiFi.isConnected()) {
+        Serial.println(F("[OTA] WiFi non connesso"));
+        return false;
+    }
 
-  WiFiClient* plain = nullptr;
-  WiFiClientSecure* tls = nullptr;
-  makeHttpClientForUrl_(manifestUrl, plain, tls);
+    WiFiClientSecure tls;
+    tls.setInsecure(); // in produzione meglio fingerprint
 
-  HTTPClient http;
-  bool begun = false;
-  if (tls) begun = http.begin(*tls, manifestUrl);
-  else     begun = http.begin(*plain, manifestUrl);
-  if (!begun) {
-    delete plain; delete tls;
-    return false;
-  }
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
-  int code = http.GET();
-  if (code != 200) {
-    if (config.debug) Serial.printf("[OTA] Manifest GET=%d\n", code);
+    if (!http.begin(tls, config.ota_manifest_url)) {
+        Serial.println(F("[OTA] http.begin fallita"));
+        return false;
+    }
+
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        Serial.printf("[OTA] GET manifest fallita: %d\n", code);
+        http.end();
+        return false;
+    }
+
+    String body = http.getString();
     http.end();
-    delete plain; delete tls;
-    return false;
-  }
 
-  StaticJsonDocument<2048> doc;
-  DeserializationError e = deserializeJson(doc, http.getStream());
-  http.end();
-  delete plain; delete tls;
-  if (e) {
-    if (config.debug) Serial.printf("[OTA] Manifest JSON error: %s\n", e.c_str());
-    return false;
-  }
+    DynamicJsonDocument doc(2048);
+    auto err = deserializeJson(doc, body);
+    if (err) {
+        Serial.printf("[OTA] JSON invalido: %s\n", err.c_str());
+        return false;
+    }
 
-  outVersion = doc["version"].as<String>();
-  outUrl     = doc["url"].as<String>();
+    if (!doc.containsKey("version") || (!doc.containsKey("bin_url") && !doc.containsKey("url"))) {
+        Serial.println(F("[CFG] manifest incompleto"));
+        return false;
+    }
 
-  if (outVersion.isEmpty() || outUrl.isEmpty()) return false;
-  return true;
+    outVersion = (const char*)doc["version"];
+    outBinUrl  = doc.containsKey("bin_url") ? (const char*)doc["bin_url"] : (const char*)doc["url"];
+
+    return true;
+}
+
+bool isNewer(const String& current, const String& remote) {
+    // timestamp remoto vs semver locale
+    if (remote.length() >= 8 && isDigit(remote[0]) && current.startsWith("v")) {
+        return true;
+    }
+    return remote != current; // fallback: diverso = nuovo
 }
 
 // -------- API -------------------------------------------------------------

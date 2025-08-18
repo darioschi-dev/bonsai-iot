@@ -1,3 +1,6 @@
+#include <Arduino.h>
+#include <FS.h>
+#include <SPIFFS.h>
 #include "config_api.h"
 
 const char* CONFIG_PATH = "/config.json";
@@ -120,7 +123,6 @@ bool saveConfigStruct(const Config& c) {
   String json = configToJson(c);
   return writeFileAtomic(CONFIG_PATH, json);
 }
-
 
 // --- Confronto MQTT ---
 bool mqttCriticalChanged(const Config& a, const Config& b) {
