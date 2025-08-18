@@ -163,3 +163,14 @@ test-scripts:
 	@echo "🧪 Test script Python"
 	@python3 scripts/setup_config.py || (echo "❌ Errore in setup_config.py" && exit 1)
 	@python3 scripts/generate_version.py || (echo "❌ Errore in generate_version.py" && exit 1)
+
+# Build release con bump patch + tag (USE_NEXT_VERSION=1)
+release: config
+	@echo "🏷️  Build di rilascio (bump patch + tag) per: $(ENV)"
+	USE_NEXT_VERSION=1 pio run -e $(ENV)
+	@NEW_TAG=$$(grep FIRMWARE_VERSION include/version_auto.h | cut -d'"' -f2); \
+	if git rev-parse "$$NEW_TAG" >/dev/null 2>&1; then \
+		echo "⚠️ Tag $$NEW_TAG già esistente, non creato"; \
+	else \
+		git tag $$NEW_TAG && echo "✔️ Creato tag $$NEW_TAG"; \
+	fi

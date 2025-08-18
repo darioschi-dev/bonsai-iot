@@ -4,11 +4,13 @@
 
 Sistema basato su **ESP32** per il monitoraggio dell’umidità del suolo e il controllo automatico di una pompa di irrigazione. Include:
 
-* Interfaccia web locale (Web UI)
-* Integrazione opzionale con MQTT
-* Notifiche via email (SMTP)
-* Deep Sleep per risparmio energetico
-* Simulazione con **Wokwi CLI** per test online
+- Interfaccia web locale (Web UI)
+- Integrazione opzionale con MQTT
+- Notifiche via email (SMTP)
+- Deep Sleep per risparmio energetico
+- Simulazione con **Wokwi CLI** per test online
+- Gestione versioni automatica (tag Git + build info)
+- Supporto OTA (upload firmware via server o diretto ESP32)
 
 ---
 
@@ -71,12 +73,13 @@ make test
 ├── platformio.ini          # Configurazione build PIO
 ├── scripts/
 │   ├── setup_config.py     # Script per generare config.json
-│   └── uploadfs.py         # Upload automatico SPIFFS post-upload
+│   ├── uploadfs.py         # Upload automatico SPIFFS post-upload
+│   └── generate_version.py # Generazione automatica versione firmware
 ├── src/                    # Codice principale
 │   └── main.cpp
 ├── test/                   # Test futuri
 ├── wokwi.toml              # Configurazione simulazione Wokwi
-├── .env                    # Token Wokwi (non tracciato)
+├── .env                    # Token Wokwi e OTA (non tracciato)
 ├── .gitignore              # Protezione file sensibili
 ├── Makefile                # Comandi build e test
 └── README.md               # Questo file
@@ -86,17 +89,21 @@ make test
 
 ## 🛠️ Comandi `make`
 
-| Comando        | Descrizione |
-|----------------|-------------|
-| `make`         | Compila, carica firmware e SPIFFS, apre il monitor seriale |
-| `make flash`   | Come sopra, ma forzato su ambiente reale |
-| `make config`  | Copia `data/config.{ENV}.json` → `data/config.json` |
-| `make test`    | Compila in `esp32-test`, monta SPIFFS, avvia simulazione Wokwi |
-| `make upload`  | Carica solo il firmware (no SPIFFS) |
-| `make uploadfs`| Carica solo SPIFFS (se `ENV != esp32-test`) |
-| `make monitor` | Apre il monitor seriale |
-| `make clean`   | Pulisce la build per l’ambiente attivo |
-| `make setup-config` | Rigenera `config.json` da template |
+| Comando             | Descrizione                                                    |
+| ------------------- | -------------------------------------------------------------- |
+| `make`              | Compila, carica firmware e SPIFFS, apre il monitor seriale     |
+| `make flash`        | Come sopra, ma forzato su ambiente reale                       |
+| `make config`       | Copia `data/config.{ENV}.json` → `data/config.json`            |
+| `make test`         | Compila in `esp32-test`, monta SPIFFS, avvia simulazione Wokwi |
+| `make upload`       | Carica solo il firmware (no SPIFFS)                            |
+| `make uploadfs`     | Carica solo SPIFFS (se `ENV != esp32-test`)                    |
+| `make monitor`      | Apre il monitor seriale                                        |
+| `make clean`        | Pulisce la build per l’ambiente attivo                         |
+| `make release`      | Build con bump patch + tag automatico (rilascio)               |
+| `make ota`          | Upload firmware al server OTA (HTTP backend)                   |
+| `make ota-local`    | Upload firmware al backend locale (`127.0.0.1`)                |
+| `make ota-direct`   | OTA diretto all’ESP32 via espota                               |
+| `make setup-config` | Rigenera `config.json` da template                             |
 
 ---
 
@@ -104,12 +111,12 @@ make test
 
 Modifica `data/config.example.json` (e versioni `.prod` / `.test`) per:
 
-* SSID/Password Wi-Fi
-* Email mittente e destinatario
-* Broker MQTT (opzionale)
-* Soglia umidità (0–100 %)
-* Pin GPIO per LED, sensore, pompa
-* Debug e durata deep sleep
+- SSID/Password Wi-Fi
+- Email mittente e destinatario
+- Broker MQTT (opzionale)
+- Soglia umidità (0–100 %)
+- Pin GPIO per LED, sensore, pompa
+- Debug e durata deep sleep
 
 ---
 
@@ -159,17 +166,32 @@ Broker supportati:
 
 ## 🔐 Sicurezza
 
-* `.env` e `config.json` sono esclusi da Git
-* Nessuna credenziale viene salvata nel repo
+- `.env` e `config.json` sono esclusi da Git
+- Nessuna credenziale viene salvata nel repo
+
+---
+
+Include:
+
+- Interfaccia web locale (Web UI) con autenticazione via PIN e dark mode
+- Integrazione opzionale con MQTT
+- Notifiche via email (SMTP)
+- Deep Sleep per risparmio energetico
+- Simulazione con **Wokwi CLI** per test online (auto-config `config.test.json`)
+- Gestione versioni automatica (tag Git + build info)
+- Supporto OTA (upload firmware via server o diretto ESP32)
 
 ---
 
 ## ✅ TODO
 
-* [ ] UI HTML migliorata
-* [ ] Dashboard MQTT (es. Node-RED)
-* [ ] Logging persistente
-* [ ] OTA update via `/update`
+- [x] UI HTML migliorata
+- [x] Dashboard MQTT (implementata custom, alternativa a Node-RED)
+- [x] Logging persistente su MongoDB
+- [x] OTA update via `/upload-firmware`
+- [ ] Migliorare grafica e usabilità interfaccia Web
+- [ ] Aggiungere notifiche real-time su eventi critici (es. batteria scarica, pompa ON/OFF)
+- [ ] Integrazione con servizi cloud (es. Home Assistant, Node-RED)
 
 ---
 
