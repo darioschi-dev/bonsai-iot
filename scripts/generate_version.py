@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-# Extra script per PlatformIO: genera include/version_auto.h e imposta PROJECT_VER
-import subprocess
-import datetime
-import re
+import subprocess, datetime, re, os
 from pathlib import Path
 
-# Importa env di PlatformIO
-from SCons.Script import Import  # type: ignore
-Import("env")
-
-import os
+# Prova a importare SCons solo se siamo dentro PlatformIO
+try:
+    from SCons.Script import Import  # type: ignore
+    Import("env")
+    in_platformio = True
+except ImportError:
+    in_platformio = False
 
 def safe_git_command(cmd, fallback):
     try:
@@ -29,18 +28,20 @@ def bump_patch(version):
     major, minor, patch = map(int, version.lstrip("v").split("."))
     return f"v{major}.{minor}.{patch + 1}"
 
-use_next_patch = os.environ.get("USE_NEXT_VERSION") == "1"
-
-latest_tag = get_latest_semver_tag()
-version = bump_patch(latest_tag) if use_next_patch else latest_tag
+# --- calcolo versione ---
+override = os.environ.get("VERSION_OVERRIDE")
+if override:
+    version = override
+else:
+    use_next_patch = os.environ.get("USE_NEXT_VERSION") == "1"
+    latest_tag = get_latest_semver_tag()
+    version = bump_patch(latest_tag) if use_next_patch else latest_tag
 
 commit = safe_git_command(["git", "rev-parse", "--short", "HEAD"], "unknown")
 build_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# Genera header in include/
-include_dir = Path("include")
-include_dir.mkdir(exist_ok=True)
-header_path = include_dir / "version_auto.h"
+header_path = Path("include") / "version_auto.h"
+header_path.parent.mkdir(exist_ok=True)
 
 content = f"""#pragma once
 #define FIRMWARE_VERSION "{version}"
@@ -48,23 +49,11 @@ content = f"""#pragma once
 #define FIRMWARE_BUILD   "{build_time}"
 """
 
-# Scrivi solo se cambia
 if not header_path.exists() or header_path.read_text() != content:
     print(f"[version] Generating {header_path} -> {version} ({commit})")
     header_path.write_text(content)
 else:
     print(f"[version] {header_path.name} up to date ({version})")
 
-# Esponi anche PROJECT_VER per esp_app_desc_t
-env.Append(BUILD_FLAGS=[f'-DPROJECT_VER="{version}"'])
-
-# Se richiesto, crea e push il nuovo tag (idempotente)
-if use_next_patch:
-    # Evita errore se il tag esiste già
-    existing = safe_git_command(["git", "tag", "--list", version], "")
-    if version not in existing.splitlines():
-        subprocess.run(["git", "tag", version], check=False)
-        subprocess.run(["git", "push", "origin", version], check=False)
-        print(f"[version] Tagged {version}")
-    else:
-        print(f"[version] Tag {version} already exists, skip push")
+if in_platformio:
+    env.Append(BUILD_FLAGS=[f'-DPROJECT_VER="{version}"'])

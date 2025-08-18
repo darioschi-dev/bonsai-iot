@@ -86,14 +86,9 @@ jobs:
 
       - name: Build firmware (esp32-prod) with VERSION override
         run: |
-          set -euo pipefail
-          echo "Building with VERSION_OVERRIDE=${VERSION}"
           VERSION_OVERRIDE="${VERSION}" pio run -e esp32-prod
-
-          # Mostra la versione effettiva inclusa nel bin (generate_version.py)
-          USED_VER=$(grep -oP '(?<=#define FIRMWARE_VERSION ")[^"]+' src/version_auto.h || true)
-          echo "FIRMWARE_VERSION in binary: ${USED_VER:-unknown}"
-
+      - name: Show firmware version
+        run: grep -oP '(?<=#define FIRMWARE_VERSION ")[^"]+' include/version_auto.h
       - name: Upload firmware as artifact
         uses: actions/upload-artifact@v4
         with:
