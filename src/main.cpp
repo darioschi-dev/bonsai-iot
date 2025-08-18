@@ -36,10 +36,15 @@ static FirmwareUpdateStrategy* fwStrategy = nullptr;
 String deviceId = String(ESP.getChipModel());
 
 static String currentAppVersion() {
+#ifdef FIRMWARE_VERSION
+  return String(FIRMWARE_VERSION);          // <— usa la versione generata dal tuo script
+#else
   const esp_app_desc_t* app = esp_ota_get_app_description();
-  if (app && app->version[0] != '\0') return String(app->version);
-  return String(FIRMWARE_VERSION); // fallback generato da generate_version.py
+  if (app && app->version[0]) return String(app->version);
+  return "unknown";
+#endif
 }
+
 
 // chiamata dal callback MQTT (dichiarata extern in mqtt.h)
 void otaCheckNow() {

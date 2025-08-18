@@ -4,18 +4,22 @@
 
 class FirmwareUpdateStrategy : public UpdateStrategy {
 public:
-    bool checkForUpdate() override;   // parse manifest + confronto + memorizza dettagli
-    bool performUpdate() override;    // usa i dettagli memorizzati
+    bool checkForUpdate() override;
+    bool performUpdate() override;
     const char* getName() override { return "Firmware"; }
 
 private:
-    // Dati catturati da checkForUpdate()
+    // dati presi dal manifest
     String availableVersion_;
     String downloadUrl_;
     String sha256_;
     bool   hasUpdate_ = false;
 
-    String currentVersion_() const;   // legge esp_app_desc_t o APP_VERSION
-    bool   httpGetToString_(const String& url, String& outBody);
-    bool   doHttpDownloadAndFlash_(const String& url, const String& sha256);
+    // helpers
+    String currentVersion_() const;
+    bool httpGetToString_(const String& url, String& outBody);
+    bool doHttpDownloadAndFlash_(const String& url, const String& sha256);
+
+    static bool isBadVersion_(const String& v);
+    static int compareVersions_(const String& a, const String& b);
 };

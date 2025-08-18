@@ -46,3 +46,7 @@ wokwi.toml.bak
 
 # Cronologia editor e backup manuali
 .history/
+
+# never track git backups
+.git_backup/
+.git.bak/
