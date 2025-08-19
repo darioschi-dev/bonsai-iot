@@ -23,6 +23,8 @@ extern "C" {
   #include "esp_ota_ops.h"
 }
 
+#include <time.h>   // 🔸 per timestamp Unix (NTP)
+
 // DEFINIZIONE reale della variabile globale
 Config config;
 
@@ -45,7 +47,6 @@ static String currentAppVersion() {
 #endif
 }
 
-
 // chiamata dal callback MQTT (dichiarata extern in mqtt.h)
 void otaCheckNow() {
   if (!fwStrategy) return;
@@ -59,7 +60,6 @@ void otaCheckNow() {
     if (config.debug) Serial.println("ℹ️ Nessun OTA disponibile");
   }
 }
-
 
 RTC_DATA_ATTR int bootCount = 0;
 Preferences prefs;
@@ -77,6 +77,9 @@ void setup_wifi() {
   }
   Serial.println("\nWiFi connected");
   Serial.println(WiFi.localIP());
+
+  // 🔸 Setup NTP per avere timestamp reale
+  configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
 }
 
 int readSoil() {
@@ -91,11 +94,30 @@ int readSoil() {
 void turnOnPump() {
   Serial.println("Turning ON pump");
   digitalWrite(config.pump_pin, LOW);
+
+  // 🔸 Pubblica stato pompa
+  mqttClient.publish("bonsai/status/pump", "on", true);
+
+  // 🔸 Calcola timestamp
+  char buf[32];
+  time_t now;
+  if (time(&now)) {
+    // timestamp Unix (secondi da 1970)
+    sprintf(buf, "%ld", now);
+  } else {
+    // fallback: millis() dal boot
+    sprintf(buf, "%lu", millis());
+  }
+
+  mqttClient.publish("bonsai/status/last_on", buf, true);
 }
 
 void turnOffPump() {
   Serial.println("Turning OFF pump");
   digitalWrite(config.pump_pin, HIGH);
+
+  // 🔸 Pubblica stato pompa
+  mqttClient.publish("bonsai/status/pump", "off", true);
 }
 
 void setup() {
@@ -103,12 +125,10 @@ void setup() {
   SPIFFS.begin(true);
   delay(100);
 
-  // 🔒 marca valida (importantissimo dopo un OTA riuscito)
   esp_ota_mark_app_valid_cancel_rollback();
 
   Serial.printf("[📦] Firmware version: %s\n", currentAppVersion().c_str());
 
-  // 🔧 Patch minima: crea namespace "bonsai" se non esiste
   if (prefs.begin("bonsai", false)) {   // RW: se manca lo crea
     if (!prefs.isKey("fw_ver")) {
       prefs.putString("fw_ver", currentAppVersion()); 
@@ -116,7 +136,6 @@ void setup() {
     prefs.end();
   }
   
-  // bootCount è RTC_DATA_ATTR: incrementa PRIMA di stamparlo
   ++bootCount;
   Serial.printf("[📦] Boot count: %d\n", bootCount);
 
@@ -128,7 +147,6 @@ void setup() {
 
   setup_wifi();
 
-  // 🔄 Check aggiornamenti (una volta al boot)
   fwStrategy = new FirmwareUpdateStrategy();
   updater.registerStrategy(fwStrategy);
   updater.registerStrategy(new ConfigUpdateStrategy());
@@ -148,7 +166,7 @@ void setup() {
     Serial.println("Soil dry, condition met");
     if (config.use_pump) {
       turnOnPump();
-      delay(3000);
+      delay(config.pump_duration * 1000);
       turnOffPump();
     }
   } else {
