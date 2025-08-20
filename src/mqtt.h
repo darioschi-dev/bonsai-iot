@@ -139,14 +139,24 @@ static inline void connectMqtt() {
   mqttClient.setServer(config.mqtt_broker.c_str(), config.mqtt_port);
   mqttClient.setCallback(mqttCallback);
 
-  // LWT opzionale: offline=0 (retained)
-  mqttClient.setWill("bonsai/status/online", "0", true, 1);
-
   while (!mqttClient.connected()) {
     Serial.printf("[MQTT] Connessione a %s:%d...\n", config.mqtt_broker.c_str(), config.mqtt_port);
-    if (mqttClient.connect(deviceId.c_str(), config.mqtt_username.c_str(), config.mqtt_password.c_str())) {
+
+    // PubSubClient non ha setWill(): il LWT si passa qui
+    // connect(clientID, user, pass, willTopic, willQoS, willRetain, willMessage)
+    bool ok = mqttClient.connect(
+      deviceId.c_str(),
+      config.mqtt_username.c_str(),
+      config.mqtt_password.c_str(),
+      "bonsai/status/online",   // will topic
+      1,                        // QoS
+      true,                     // retain
+      "0"                       // will payload (offline)
+    );
+
+    if (ok) {
       Serial.println("✅ MQTT connesso!");
-      // announce online + device id (retained)
+      // Announce online + device id (retained)
       publishMqtt("bonsai/status/online", "1", true);
       publishMqtt("bonsai/status/device_id", deviceId, true);
 
