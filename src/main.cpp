@@ -52,14 +52,6 @@ static String currentAppVersion() {
 #endif
 }
 
-static unsigned long long epochMs() {
-  time_t nowSec;
-  if (time(&nowSec) && nowSec > 100000) {
-    return (unsigned long long)nowSec * 1000ULL;
-  }
-  return (unsigned long long)millis();
-}
-
 // ----------------- OTA da MQTT -----------------
 void otaCheckNow() {
   if (!fwStrategy) return;
