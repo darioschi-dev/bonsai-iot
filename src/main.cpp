@@ -5,9 +5,10 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-#include <Preferences.h>
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
+#include <time.h>   // per NTP/timestamp
+
 #include "config.h"
 #include "mail.h"
 #include "webserver.h"
@@ -18,28 +19,32 @@
 #include "update/FirmwareUpdateStrategy.h"
 #include "update/ConfigUpdateStrategy.h"
 
-#include "config.h"
 extern "C" {
   #include "esp_ota_ops.h"
 }
 
-#include <time.h>   // 🔸 per timestamp Unix (NTP)
-
-// DEFINIZIONE reale della variabile globale
+// ----------------- Variabili globali -----------------
 Config config;
 
 WiFiClient *plainClient = nullptr;
 WiFiClientSecure *secureClient = nullptr;
-PubSubClient mqttClient; // definizione globale vera
+PubSubClient mqttClient;
 
 static UpdateManager updater;
 static FirmwareUpdateStrategy* fwStrategy = nullptr;
 
 String deviceId = String(ESP.getChipModel());
 
+RTC_DATA_ATTR int bootCount = 0;
+Preferences prefs;
+
+int soilValue = 0;
+int soilPercent = 0;
+
+// ----------------- Utility -----------------
 static String currentAppVersion() {
 #ifdef FIRMWARE_VERSION
-  return String(FIRMWARE_VERSION);          // <— usa la versione generata dal tuo script
+  return String(FIRMWARE_VERSION);
 #else
   const esp_app_desc_t* app = esp_ota_get_app_description();
   if (app && app->version[0]) return String(app->version);
@@ -47,7 +52,15 @@ static String currentAppVersion() {
 #endif
 }
 
-// chiamata dal callback MQTT (dichiarata extern in mqtt.h)
+static unsigned long long epochMs() {
+  time_t nowSec;
+  if (time(&nowSec) && nowSec > 100000) {
+    return (unsigned long long)nowSec * 1000ULL;
+  }
+  return (unsigned long long)millis();
+}
+
+// ----------------- OTA da MQTT -----------------
 void otaCheckNow() {
   if (!fwStrategy) return;
   if (fwStrategy->checkForUpdate()) {
@@ -61,15 +74,11 @@ void otaCheckNow() {
   }
 }
 
-RTC_DATA_ATTR int bootCount = 0;
-Preferences prefs;
-
-int soilValue = 0;
-int soilPercent = 0;
-
+// ----------------- WiFi/NTP -----------------
 void setup_wifi() {
   Serial.print("Connecting to WiFi: ");
   Serial.println(config.wifi_ssid);
+
   WiFi.begin(config.wifi_ssid.c_str(), config.wifi_password.c_str());
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -78,10 +87,13 @@ void setup_wifi() {
   Serial.println("\nWiFi connected");
   Serial.println(WiFi.localIP());
 
-  // 🔸 Setup NTP per avere timestamp reale
-  configTime(3600, 3600, "pool.ntp.org", "time.nist.gov");
+  // TZ Europa/Roma (CET/CEST) + NTP
+  setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
+  tzset();
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 }
 
+// ----------------- Sensore -----------------
 int readSoil() {
   int raw = analogRead(config.sensor_pin);
   int perc = map(raw, 4095, 0, 0, 100);
@@ -91,51 +103,46 @@ int readSoil() {
   return perc;
 }
 
+// ----------------- Pompa -----------------
 void turnOnPump() {
   Serial.println("Turning ON pump");
   digitalWrite(config.pump_pin, LOW);
 
-  // 🔸 Pubblica stato pompa
-  mqttClient.publish("bonsai/status/pump", "on", true);
+  // Stato pompa (retained)
+  publishMqtt("bonsai/status/pump", "on", true);
 
-  // 🔸 Calcola timestamp
+  // Timestamp ultima accensione (ms)
   char buf[32];
-  time_t now;
-  if (time(&now)) {
-    // timestamp Unix (secondi da 1970)
-    sprintf(buf, "%ld", now);
-  } else {
-    // fallback: millis() dal boot
-    sprintf(buf, "%lu", millis());
-  }
-
-  mqttClient.publish("bonsai/status/last_on", buf, true);
+  unsigned long long ms = epochMs();
+  snprintf(buf, sizeof(buf), "%llu", ms);
+  publishMqtt("bonsai/status/last_on", buf, true);
 }
 
 void turnOffPump() {
   Serial.println("Turning OFF pump");
   digitalWrite(config.pump_pin, HIGH);
 
-  // 🔸 Pubblica stato pompa
-  mqttClient.publish("bonsai/status/pump", "off", true);
+  publishMqtt("bonsai/status/pump", "off", true);
 }
 
+// ----------------- Setup -----------------
 void setup() {
   Serial.begin(115200);
   SPIFFS.begin(true);
   delay(100);
 
+  // segna app valida post-OTA
   esp_ota_mark_app_valid_cancel_rollback();
 
   Serial.printf("[📦] Firmware version: %s\n", currentAppVersion().c_str());
 
-  if (prefs.begin("bonsai", false)) {   // RW: se manca lo crea
+  if (prefs.begin("bonsai", false)) {
     if (!prefs.isKey("fw_ver")) {
-      prefs.putString("fw_ver", currentAppVersion()); 
+      prefs.putString("fw_ver", currentAppVersion());
     }
     prefs.end();
   }
-  
+
   ++bootCount;
   Serial.printf("[📦] Boot count: %d\n", bootCount);
 
@@ -147,6 +154,10 @@ void setup() {
 
   setup_wifi();
 
+  // ✅ Connetti MQTT PRIMA di eventuali publish (irrigazione)
+  setupMqtt();
+
+  // Aggiornamenti (OTA/config)
   fwStrategy = new FirmwareUpdateStrategy();
   updater.registerStrategy(fwStrategy);
   updater.registerStrategy(new ConfigUpdateStrategy());
@@ -156,11 +167,12 @@ void setup() {
   pinMode(config.led_pin, OUTPUT);
   pinMode(config.sensor_pin, INPUT);
   pinMode(config.pump_pin, OUTPUT);
-  digitalWrite(config.pump_pin, HIGH);
+  digitalWrite(config.pump_pin, HIGH); // relè idle (active-LOW)
 
   ArduinoOTA.begin();
   setup_webserver(config.pump_pin);
 
+  // Misura e (eventualmente) irriga
   int perc = readSoil();
   if (perc > config.moisture_threshold) {
     Serial.println("Soil dry, condition met");
@@ -173,8 +185,6 @@ void setup() {
     Serial.println("Soil OK");
   }
 
-  setupMqtt();
-
   if (!config.debug) {
     esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
     Serial.printf("Sleeping for %d hours\n", config.sleep_hours);
@@ -183,6 +193,7 @@ void setup() {
   }
 }
 
+// ----------------- Loop -----------------
 void loop() {
   ArduinoOTA.handle();
   loopMqtt();
