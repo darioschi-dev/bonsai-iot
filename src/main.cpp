@@ -7,7 +7,7 @@
 #include <ArduinoOTA.h>
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
-#include <time.h>   // per NTP/timestamp
+#include <time.h> // per NTP/timestamp
 
 #include "config.h"
 #include "mail.h"
@@ -19,8 +19,9 @@
 #include "update/FirmwareUpdateStrategy.h"
 #include "update/ConfigUpdateStrategy.h"
 
-extern "C" {
-  #include "esp_ota_ops.h"
+extern "C"
+{
+#include "esp_ota_ops.h"
 }
 
 // ----------------- Variabili globali -----------------
@@ -31,7 +32,7 @@ WiFiClientSecure *secureClient = nullptr;
 PubSubClient mqttClient;
 
 static UpdateManager updater;
-static FirmwareUpdateStrategy* fwStrategy = nullptr;
+static FirmwareUpdateStrategy *fwStrategy = nullptr;
 
 String deviceId = String(ESP.getChipModel());
 
@@ -42,28 +43,48 @@ int soilValue = 0;
 int soilPercent = 0;
 
 // ----------------- Utility -----------------
-static String currentAppVersion() {
+static String currentAppVersion()
+{
 #ifdef FIRMWARE_VERSION
   return String(FIRMWARE_VERSION);
 #else
-  const esp_app_desc_t* app = esp_ota_get_app_description();
-  if (app && app->version[0]) return String(app->version);
+  const esp_app_desc_t *app = esp_ota_get_app_description();
+  if (app && app->version[0])
+    return String(app->version);
   return "unknown";
 #endif
 }
 
 // ----------------- OTA da MQTT -----------------
-void otaCheckNow() {
-  if (!fwStrategy) return;
-  if (fwStrategy->checkForUpdate()) {
-    if (fwStrategy->performUpdate()) {
+void otaCheckNow()
+{
+  if (!fwStrategy)
+    return;
+  if (fwStrategy->checkForUpdate())
+  {
+    if (fwStrategy->performUpdate())
+    {
       Serial.println("✅ OTA eseguito");
-    } else {
+    }
+    else
+    {
       Serial.println("❌ OTA fallito");
     }
-  } else {
-    if (config.debug) Serial.println("ℹ️ Nessun OTA disponibile");
   }
+  else
+  {
+    if (config.debug)
+      Serial.println("ℹ️ Nessun OTA disponibile");
+  }
+}
+
+static bool waitForTime(unsigned long timeoutMs = 10000) {
+  unsigned long start = millis();
+  while (millis() - start < timeoutMs) {
+    if (timeIsValid()) return true; // viene da mqtt.h
+    delay(200);
+  }
+  return false;
 }
 
 // ----------------- WiFi/NTP -----------------
@@ -83,10 +104,18 @@ void setup_wifi() {
   setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
   tzset();
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+
+  // attesa minima della sync NTP
+  if (waitForTime()) {
+    if (config.debug) Serial.println("[TIME] NTP OK");
+  } else {
+    if (config.debug) Serial.println("[TIME] NTP non sincronizzato entro il timeout");
+  }
 }
 
 // ----------------- Sensore -----------------
-int readSoil() {
+int readSoil()
+{
   int raw = analogRead(config.sensor_pin);
   int perc = map(raw, 4095, 0, 0, 100);
   Serial.printf("Soil raw: %d, percentage: %d\n", raw, perc);
@@ -96,7 +125,8 @@ int readSoil() {
 }
 
 // ----------------- Pompa -----------------
-void turnOnPump() {
+void turnOnPump()
+{
   Serial.println("Turning ON pump");
   digitalWrite(config.pump_pin, LOW);
 
@@ -106,11 +136,14 @@ void turnOnPump() {
   // Timestamp ultima accensione (ms)
   char buf[32];
   unsigned long long ms = epochMs();
+  if (ms > 0) {
   snprintf(buf, sizeof(buf), "%llu", ms);
   publishMqtt("bonsai/status/last_on", buf, true);
+  }
 }
 
-void turnOffPump() {
+void turnOffPump()
+{
   Serial.println("Turning OFF pump");
   digitalWrite(config.pump_pin, HIGH);
 
@@ -118,7 +151,8 @@ void turnOffPump() {
 }
 
 // ----------------- Setup -----------------
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   SPIFFS.begin(true);
   delay(100);
@@ -128,8 +162,10 @@ void setup() {
 
   Serial.printf("[📦] Firmware version: %s\n", currentAppVersion().c_str());
 
-  if (prefs.begin("bonsai", false)) {
-    if (!prefs.isKey("fw_ver")) {
+  if (prefs.begin("bonsai", false))
+  {
+    if (!prefs.isKey("fw_ver"))
+    {
       prefs.putString("fw_ver", currentAppVersion());
     }
     prefs.end();
@@ -138,7 +174,8 @@ void setup() {
   ++bootCount;
   Serial.printf("[📦] Boot count: %d\n", bootCount);
 
-  if (!loadConfig(config)) {
+  if (!loadConfig(config))
+  {
     Serial.println("[✖] Failed to load config.json");
     return;
   }
@@ -154,7 +191,8 @@ void setup() {
   updater.registerStrategy(fwStrategy);
   updater.registerStrategy(new ConfigUpdateStrategy());
   updater.runAll();
-  if (config.debug) Serial.println("[🔄] Update check complete");
+  if (config.debug)
+    Serial.println("[🔄] Update check complete");
 
   pinMode(config.led_pin, OUTPUT);
   pinMode(config.sensor_pin, INPUT);
@@ -166,18 +204,23 @@ void setup() {
 
   // Misura e (eventualmente) irriga
   int perc = readSoil();
-  if (perc > config.moisture_threshold) {
+  if (perc < config.moisture_threshold)
+  {
     Serial.println("Soil dry, condition met");
-    if (config.use_pump) {
+    if (config.use_pump)
+    {
       turnOnPump();
       delay(config.pump_duration * 1000);
       turnOffPump();
     }
-  } else {
+  }
+  else
+  {
     Serial.println("Soil OK");
   }
 
-  if (!config.debug) {
+  if (!config.debug)
+  {
     esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
     Serial.printf("Sleeping for %d hours\n", config.sleep_hours);
     delay(100);
@@ -186,7 +229,8 @@ void setup() {
 }
 
 // ----------------- Loop -----------------
-void loop() {
+void loop()
+{
   ArduinoOTA.handle();
   loopMqtt();
 }
