@@ -139,56 +139,88 @@ static inline bool applyConfigJson(const String &json)
   return true;
 }
 
+// ---------------- PUBLISH CONFIG SNAPSHOT ----------------
+static inline void publishConfigSnapshot()
+{
+  // serializza l’intera config corrente e pubblica RETAINED
+  StaticJsonDocument<1024> doc;
+  doc["wifi_ssid"] = config.wifi_ssid;
+  doc["wifi_password"] = config.wifi_password;
+  doc["mqtt_broker"] = config.mqtt_broker;
+  doc["mqtt_port"] = config.mqtt_port;
+  doc["mqtt_username"] = config.mqtt_username;
+  doc["mqtt_password"] = config.mqtt_password;
+  doc["sensor_pin"] = config.sensor_pin;
+  doc["pump_pin"] = config.pump_pin;
+  doc["relay_pin"] = config.relay_pin;
+  doc["battery_pin"] = config.battery_pin;
+  doc["moisture_threshold"] = config.moisture_threshold;
+  doc["pump_duration"] = config.pump_duration;
+  doc["measurement_interval"] = config.measurement_interval;
+  doc["use_pump"] = config.use_pump;
+  doc["debug"] = config.debug;
+  doc["sleep_hours"] = config.sleep_hours;
+  doc["use_dhcp"] = config.use_dhcp;
+  doc["ip_address"] = config.ip_address;
+  doc["gateway"] = config.gateway;
+  doc["subnet"] = config.subnet;
+  doc["ota_manifest_url"] = config.ota_manifest_url;
+  doc["update_server"] = config.update_server;
+  doc["config_version"] = config.config_version; // opzionale
+  doc["config_version"] = config.config_version; // <- chiave
+  doc["device_id"] = deviceId;
+
+  String out;
+  out.reserve(1024);
+  serializeJson(doc, out);
+  publishMqtt("bonsai/config", out, /*retain=*/true);
+}
+
 // ---------------- CALLBACK MQTT ----------------
 static inline void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
-  // 1) Costruisci prima il payload testuale
+  // 1) Ricostruisci il payload in una String
   String message;
   message.reserve(length);
-  for (unsigned int i = 0; i < length; i++)
-  {
+  for (unsigned int i = 0; i < length; i++) {
     message += (char)payload[i];
   }
 
   // 2) Debug
-  if (config.debug)
+  if (config.debug) {
     Serial.printf("[MQTT] Topic: %s | Msg: %s\n", topic, message.c_str());
+  }
 
-  // 3) Normalizza topic e payload
+  // 3) Normalizza topic e payload (una sola dichiarazione!)
   const String t(topic);
-  String msg = message;
+  String msg = message; 
   msg.trim();
-  String msgLower = msg;
+  String msgLower = msg; 
   msgLower.toLowerCase();
 
   // 4) Accetta anche payload JSON (es. {"pump":"on"})
-  if (msg.startsWith("{"))
-  {
+  if (msg.startsWith("{")) {
     StaticJsonDocument<128> j;
     DeserializationError je = deserializeJson(j, msg);
-    if (!je && j.containsKey("pump"))
-    {
-      msgLower = String(j["pump"].as<const char *>());
+    if (!je && j.containsKey("pump")) {
+      msgLower = String(j["pump"].as<const char*>());
       msgLower.toLowerCase();
     }
   }
 
-  const String t(topic);
-  String msg = message; msg.trim();
-
-  // 1) LIVE command (non-retained)
+  // ===== CONFIG: comando live (non retained)
   if (t == "bonsai/config/set" || t == ("bonsai/config/set/" + deviceId)) {
     const bool ok = applyConfigJson(msg);
     publishMqtt("bonsai/config/ack", ok ? "{\"ok\":true,\"source\":\"set\"}" : "{\"ok\":false,\"source\":\"set\"}");
     if (ok) {
-      publishConfigSnapshot();     // snapshot retained aggiornato
+      publishConfigSnapshot();     // aggiorna lo snapshot retained
       delay(300);
-      ESP.restart();               // se cambi rete/pin conviene riavviare
+      ESP.restart();               // riavvio consigliato
     }
     return;
   }
 
-  // 2) MAILBOX retained (snapshot completo)
+  // ===== CONFIG: snapshot retained (mailbox)
   if (t == "bonsai/config" || t == ("bonsai/config/" + deviceId)) {
     StaticJsonDocument<256> j;
     if (deserializeJson(j, msg) == DeserializationError::Ok) {
@@ -210,54 +242,44 @@ static inline void mqttCallback(char *topic, byte *payload, unsigned int length)
     return;
   }
 
-  // Comando pompa
-  if (t == "bonsai/command/pump")
-  {
-    const bool turnOn = (msgLower == "on");
+  // ===== Comando pompa
+  if (t == "bonsai/command/pump") {
+    const bool turnOn  = (msgLower == "on");
     const bool turnOff = (msgLower == "off");
-    if (!turnOn && !turnOff)
-      return;
-    if (turnOn)
-    {
+    if (!turnOn && !turnOff) return;
+
+    if (turnOn) {
       digitalWrite(config.pump_pin, LOW);
       publishMqtt("bonsai/status/pump", "on", true);
 
-      // turnOnPump()
-      char buf[32];
-      unsigned long long ms = epochMs();
-      if (ms > 0)
-      { // <-- pubblica solo se tempo valido
+      // pubblica last_on solo se l'ora è valida
+      const unsigned long long ms = epochMs();
+      if (ms > 0) {
+        char buf[32];
         snprintf(buf, sizeof(buf), "%llu", ms);
-        publishMqtt("bonsai/status/last_on", buf, true);
+        publishMqtt("bonsai/status/last_on", String(buf), true);
       }
-    }
-    else
-    {
+    } else {
       digitalWrite(config.pump_pin, HIGH);
       publishMqtt("bonsai/status/pump", "off", true);
     }
     return;
   }
 
-  // ===== Reboot / OTA / Legacy
-  if (t == "bonsai/command/reboot" || t == "bonsai/command/restart")
-  {
+  // ===== Reboot / restart
+  if (t == "bonsai/command/reboot" || t == "bonsai/command/restart") {
     ESP.restart();
     return;
   }
 
-  // OTA trigger
-  if (t == "bonsai/ota/available" || t == ("bonsai/ota/force/" + deviceId))
-  {
+  // ===== OTA trigger
+  if (t == "bonsai/ota/available" || t == ("bonsai/ota/force/" + deviceId)) {
     extern void triggerFirmwareCheck();
     triggerFirmwareCheck();
     return;
   }
 
-  // (opzionale) Se proprio vuoi poter "forzare" via snapshot retained:
-  // if (t == "bonsai/config") { /* se include config_version diversa, applica */ }
-
-  // Handler legacy
+  // ===== Handler legacy (se esiste ancora)
   handleMqttConfigCommands(topic, payload, length);
 }
 
@@ -369,41 +391,4 @@ static inline void setupMqtt()
 
   mqttClient.setCallback(mqttCallback);
   connectMqtt();
-}
-
-// ---------------- PUBLISH CONFIG SNAPSHOT ----------------
-static inline void publishConfigSnapshot()
-{
-  // serializza l’intera config corrente e pubblica RETAINED
-  StaticJsonDocument<1024> doc;
-  doc["wifi_ssid"] = config.wifi_ssid;
-  doc["wifi_password"] = config.wifi_password;
-  doc["mqtt_broker"] = config.mqtt_broker;
-  doc["mqtt_port"] = config.mqtt_port;
-  doc["mqtt_username"] = config.mqtt_username;
-  doc["mqtt_password"] = config.mqtt_password;
-  doc["sensor_pin"] = config.sensor_pin;
-  doc["pump_pin"] = config.pump_pin;
-  doc["relay_pin"] = config.relay_pin;
-  doc["battery_pin"] = config.battery_pin;
-  doc["moisture_threshold"] = config.moisture_threshold;
-  doc["pump_duration"] = config.pump_duration;
-  doc["measurement_interval"] = config.measurement_interval;
-  doc["use_pump"] = config.use_pump;
-  doc["debug"] = config.debug;
-  doc["sleep_hours"] = config.sleep_hours;
-  doc["use_dhcp"] = config.use_dhcp;
-  doc["ip_address"] = config.ip_address;
-  doc["gateway"] = config.gateway;
-  doc["subnet"] = config.subnet;
-  doc["ota_manifest_url"] = config.ota_manifest_url;
-  doc["update_server"] = config.update_server;
-  doc["config_version"] = config.config_version; // opzionale
-  doc["config_version"] = config.config_version; // <- chiave
-  doc["device_id"] = deviceId;
-
-  String out;
-  out.reserve(1024);
-  serializeJson(doc, out);
-  publishMqtt("bonsai/config", out, /*retain=*/true);
 }
