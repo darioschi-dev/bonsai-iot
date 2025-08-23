@@ -62,6 +62,18 @@ static inline void publishMqtt(const char *topic, const String &payload, bool re
 }
 
 // ---------------- CONFIG via MQTT ----------------
+
+// ---- util: decide se è una config "nuova" ----
+static inline bool isNewerConfigVersion(const String &incoming, const String &current)
+{
+  if (incoming.length() == 0)
+    return false; // niente versione => non auto-applicare
+  if (current.length() == 0)
+    return true;
+  // timestamp YYYYMMDDHHmmss o ULID/stringa: confronto lessicografico va bene se monotono
+  return incoming != current && incoming > current;
+}
+
 static inline bool applyConfigJson(const String &json)
 {
   StaticJsonDocument<1024> doc;
@@ -161,35 +173,42 @@ static inline void mqttCallback(char *topic, byte *payload, unsigned int length)
     }
   }
 
-  // ===== CONFIG SET (comando non-retained)
-  if (t == "bonsai/config/set" || t == ("bonsai/config/set/" + deviceId))
-  {
-    const bool ok = applyConfigJson(message);
-    // ACK non-retained
-    publishMqtt("bonsai/config/ack", ok ? "{\"ok\":true}" : "{\"ok\":false}");
-    if (ok)
-    {
-      // Pubblica lo snapshot aggiornato (RETAINED)
-      publishConfigSnapshot();
-      // Se cambi pin o reti, spesso conviene riavviare
+  const String t(topic);
+  String msg = message; msg.trim();
+
+  // 1) LIVE command (non-retained)
+  if (t == "bonsai/config/set" || t == ("bonsai/config/set/" + deviceId)) {
+    const bool ok = applyConfigJson(msg);
+    publishMqtt("bonsai/config/ack", ok ? "{\"ok\":true,\"source\":\"set\"}" : "{\"ok\":false,\"source\":\"set\"}");
+    if (ok) {
+      publishConfigSnapshot();     // snapshot retained aggiornato
       delay(300);
-      ESP.restart();
+      ESP.restart();               // se cambi rete/pin conviene riavviare
     }
     return;
   }
 
-  // // Config globale o per-device
-  // if (t == "bonsai/config" || t == "bonsai/config/" + deviceId)
-  // {
-  //   bool ok = applyConfigJson(message);
-  //   publishMqtt("bonsai/ack/config", ok ? "{\"status\":\"applied\"}" : "{\"status\":\"failed\"}");
-  //   if (ok)
-  //   {
-  //     delay(1000);
-  //     ESP.restart();
-  //   }
-  //   return;
-  // }
+  // 2) MAILBOX retained (snapshot completo)
+  if (t == "bonsai/config" || t == ("bonsai/config/" + deviceId)) {
+    StaticJsonDocument<256> j;
+    if (deserializeJson(j, msg) == DeserializationError::Ok) {
+      const String incomingVer = j["config_version"] | "";
+      if (isNewerConfigVersion(incomingVer, config.config_version)) {
+        const bool ok = applyConfigJson(msg);
+        publishMqtt("bonsai/config/ack", ok ? "{\"ok\":true,\"source\":\"retained\"}" : "{\"ok\":false,\"source\":\"retained\"}");
+        if (ok) {
+          publishConfigSnapshot();
+          delay(300);
+          ESP.restart();
+        }
+      } else {
+        if (config.debug) Serial.println("[CONFIG] Retained uguale/vecchio: ignorato");
+      }
+    } else {
+      if (config.debug) Serial.println("[CONFIG] Retained non-JSON: ignorato");
+    }
+    return;
+  }
 
   // Comando pompa
   if (t == "bonsai/command/pump")
@@ -264,7 +283,8 @@ static inline void connectMqtt()
         "0"                     // will payload (offline)
     );
 
-    if (ok) {
+    if (ok)
+    {
       Serial.println("✅ MQTT connesso!");
       publishMqtt("bonsai/status/online", "1", true);
       publishMqtt("bonsai/status/device_id", deviceId, true);
@@ -379,6 +399,8 @@ static inline void publishConfigSnapshot()
   doc["ota_manifest_url"] = config.ota_manifest_url;
   doc["update_server"] = config.update_server;
   doc["config_version"] = config.config_version; // opzionale
+  doc["config_version"] = config.config_version; // <- chiave
+  doc["device_id"] = deviceId;
 
   String out;
   out.reserve(1024);
