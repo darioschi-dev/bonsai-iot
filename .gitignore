@@ -9,8 +9,6 @@
 
 # PlatformIO build & deps
 .pio/
-.pioenvs/
-.piolibdeps/
 libdeps/
 .platformio/
 .cmake/
@@ -22,6 +20,8 @@ cmake-build-*/
 *.map
 *.hex
 *.ota.bin
+*.a
+*.d
 
 # File generati automaticamente
 include/version_auto.h
