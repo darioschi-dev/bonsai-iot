@@ -1,20 +1,42 @@
-# VSCode
+# VS Code / IDE
 .vscode/
 *.code-workspace
+.clangd/
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
 
-# PlatformIO
+# PlatformIO build & deps
 .pio/
 .pioenvs/
 .piolibdeps/
-platformio.ini.bak
+libdeps/
+.platformio/
+.cmake/
+cmake-build-*/
+
+# Firmware binari/artefatti
 *.elf
 *.bin
 *.map
+*.hex
+*.ota.bin
 
-# SPIFFS data
+# File generati automaticamente
+include/version_auto.h
+src/version_auto.h
+platformio.ini.bak
+wokwi.toml.bak
+
+# Dati locali (segreti/config)
 data/config.json
 data/config.test.json
 data/config.prod.json
+
+# OTA / upload
+uploads/
+firmware/
 
 # Python
 .venv/
@@ -23,20 +45,18 @@ __pycache__/
 *.pyo
 *.pyd
 .env
-*.env
+*.env.*
 
-# MacOS
+# OS junk / temp
 .DS_Store
-
-# Log e temporanei
+Thumbs.db
 *.log
 *.bak
 *.tmp
 *.swp
 *.swo
 
-# Wokwi
-wokwi.toml.bak
-
-# Cronologia editor e backup Git manuali
+# Backup/cronologie
 .history/
+.git_backup/
+.git.bak/

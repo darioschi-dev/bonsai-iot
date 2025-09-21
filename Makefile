@@ -1,6 +1,13 @@
-# Makefile pulito per bonsai-iot
+# Makefile per bonsai-iot (ESP32)
+# Usage esempi:
+#   make build                 # build standard
+#   make release               # build con bump patch + tag (USE_NEXT_VERSION=1)
+#   make flash                 # build + upload + uploadfs + monitor
+#   make ota                   # upload bin al server OTA (richiede .env OTA_URL)
+#   make ota-direct            # OTA diretto con espota (richiede .env OTA_DIRECT_HOST)
 
-.PHONY: all build upload uploadfs monitor test wokwi clean flash setup-config config ota ota-local requirements test-scripts
+.PHONY: all build release upload uploadfs buildfs monitor test wokwi clean flash setup-config config \
+        ota ota-local ota-direct requirements test-scripts ports erase
 
 # Ambiente attivo (default = esp32-prod)
 ENV ?= esp32-prod
@@ -11,17 +18,22 @@ ENV_NAME := $(patsubst esp32-%,%,$(ENV))
 BIN := .pio/build/$(ENV)/firmware.bin
 ELF := .pio/build/$(ENV)/firmware.elf
 
-# Server OTA (leggi da .env se presente)
+# Server/parametri vari (caricati da .env se presente)
 ifneq ("$(wildcard .env)","")
 include .env
 export
 endif
-OTA_URL   ?=
-OTA_TOKEN ?=
+OTA_URL        ?=
+OTA_TOKEN      ?=
+OTA_DIRECT_HOST?=
+OTA_DIRECT_PORT?=
+OTA_DIRECT_AUTH?=
+BAUD           ?=115200
 
 all: flash
 
-# Copia config.$(ENV_NAME).json -> data/config.json (obbligatorio prima di build)
+# --- Config di runtime copiando il profilo giusto --------------------------------
+
 config:
 	@echo "🌐 Ambiente attivo: $(ENV) (config: data/config.$(ENV_NAME).json)"
 	@if [ -f "data/config.$(ENV_NAME).json" ]; then \
@@ -31,10 +43,32 @@ config:
 		echo "❌ Manca data/config.$(ENV_NAME).json"; exit 1; \
 	fi
 
-# Compila una sola volta (eventuale logica versione via USE_NEXT_VERSION)
+setup-config:
+	python3 scripts/setup_config.py
+
+# --- Build ----------------------------------------------------------------------
+
+# Build standard (NO bump/tag)
 build: config
 	@echo "🔧 Compilazione per ambiente: $(ENV)"
+	pio run -e $(ENV)
+
+# Build release con bump patch + tag (USE_NEXT_VERSION=1)
+release: config
+	@echo "🏷️  Build di rilascio (bump patch + tag) per: $(ENV)"
 	USE_NEXT_VERSION=1 pio run -e $(ENV)
+
+buildfs:
+	pio run -e $(ENV) --target buildfs
+
+clean:
+	pio run -e $(ENV) --target clean
+
+erase:
+	@echo "⚠️  Cancello filesystem (SPIFFS/LittleFS) – attenzione!"
+	pio run -e $(ENV) --target erase
+
+# --- Upload seriale & FS --------------------------------------------------------
 
 upload:
 	@if [ "$(ENV)" != "esp32-test" ]; then \
@@ -50,20 +84,21 @@ uploadfs:
 		echo "⏭️  Upload SPIFFS/LittleFS saltato (ambiente test)"; \
 	fi
 
+# --- Monitor seriale ------------------------------------------------------------
+
 monitor:
-	pio device monitor
+	pio device monitor -b $(BAUD)
+
+ports:
+	@pio device list
+
+# --- Comandi composti -----------------------------------------------------------
 
 flash: build upload uploadfs monitor
 
-setup-config:
-	python3 scripts/setup_config.py
+# --- OTA via HTTP (server backend) ----------------------------------------------
 
-clean:
-	pio run -e $(ENV) --target clean
-
-# --- OTA via HTTP -------------------------------------------------------------
-
-# Upload al server OTA (usa .env: OTA_URL, OTA_TOKEN). Fallisce se URL mancante.
+# Upload al server OTA (usa .env: OTA_URL obbligatoria, OTA_TOKEN opzionale)
 ota: build
 	@if [ -z "$(OTA_URL)" ]; then echo "❌ OTA_URL non impostato (mettilo in .env)"; exit 1; fi
 	@if [ ! -f "$(BIN)" ]; then echo "❌ BIN non trovato: $(BIN)"; exit 1; fi
@@ -80,7 +115,7 @@ ota: build
 			"$(OTA_URL)" -w "\nHTTP %{http_code}\n"; \
 	fi
 
-# Upload diretto all'origine locale (utile per bypassare Cloudflare)
+# Upload diretto all'origine locale (bypassa Cloudflare)
 ota-local: build
 	@VERSION=$$(date +%Y%m%d_%H%M); \
 	echo "➡️  Upload locale $(BIN) -> http://127.0.0.1:3000/upload-firmware (version $$VERSION)"; \
@@ -88,27 +123,22 @@ ota-local: build
 		-F "firmware=@$(BIN)" -F "version=$$VERSION" \
 		http://127.0.0.1:3000/upload-firmware -w "\nHTTP %{http_code}\n"
 
-# --- OTA diretto ESP32 (espota) ----------------------------------------------
-# .env (opzionale): OTA_DIRECT_HOST=192.168.1.97
-#                   OTA_DIRECT_PORT=3232   # se omesso -> 3232
-#                   OTA_DIRECT_AUTH=secret (se usi ArduinoOTA.setPassword)
+# --- OTA diretto ESP32 (espota) -------------------------------------------------
 
+# .env (opzionale):
+#   OTA_DIRECT_HOST=192.168.1.97
+#   OTA_DIRECT_PORT=3232
+#   OTA_DIRECT_AUTH=secret  (se usi ArduinoOTA.setPassword)
 ota-direct:
 	@if [ -z "$(OTA_DIRECT_HOST)" ]; then echo "❌ OTA_DIRECT_HOST non impostato (mettilo in .env)"; exit 1; fi
-	@# Porta "di fatto" per il log (default 3232 se non definita)
 	@PORT=$${OTA_DIRECT_PORT:-3232}; \
 	echo "📡 OTA diretto verso $(OTA_DIRECT_HOST):$$PORT"; \
-	\
-	# Prepara eventuali flag extra per espota
-	if [ -f .env ]; then set -a && . .env && set +a; fi; \
-	EXTRA_FLAGS=""; \
-	[ -n "$$OTA_DIRECT_PORT" ] && EXTRA_FLAGS="$$EXTRA_FLAGS --upload_flags --port=$$OTA_DIRECT_PORT"; \
-	[ -n "$$OTA_DIRECT_AUTH" ] && EXTRA_FLAGS="$$EXTRA_FLAGS --upload_flags --auth=$$OTA_DIRECT_AUTH"; \
-	\
-	# Se la porta non è specificata, espota userà 3232 di default
-	pio run -e esp32-ota -t upload --upload-port $(OTA_DIRECT_HOST) $$EXTRA_FLAGS
+	EXTRA=""; \
+	[ -n "$$OTA_DIRECT_PORT" ] && EXTRA="$$EXTRA --upload_flags --port=$$OTA_DIRECT_PORT"; \
+	[ -n "$$OTA_DIRECT_AUTH" ] && EXTRA="$$EXTRA --upload_flags --auth=$$OTA_DIRECT_AUTH"; \
+	pio run -e esp32-ota -t upload --upload-port $(OTA_DIRECT_HOST) $$EXTRA
 
-# --- Extra -------------------------------------------------------------------
+# --- Varie ----------------------------------------------------------------------
 
 test:
 	@echo "🧪 TEST (ENV=esp32-test)"
@@ -133,3 +163,14 @@ test-scripts:
 	@echo "🧪 Test script Python"
 	@python3 scripts/setup_config.py || (echo "❌ Errore in setup_config.py" && exit 1)
 	@python3 scripts/generate_version.py || (echo "❌ Errore in generate_version.py" && exit 1)
+
+# Build release con bump patch + tag (USE_NEXT_VERSION=1)
+release: config
+	@echo "🏷️  Build di rilascio (bump patch + tag) per: $(ENV)"
+	USE_NEXT_VERSION=1 pio run -e $(ENV)
+	@NEW_TAG=$$(grep FIRMWARE_VERSION include/version_auto.h | cut -d'"' -f2); \
+	if git rev-parse "$$NEW_TAG" >/dev/null 2>&1; then \
+		echo "⚠️ Tag $$NEW_TAG già esistente, non creato"; \
+	else \
+		git tag $$NEW_TAG && echo "✔️ Creato tag $$NEW_TAG"; \
+	fi
