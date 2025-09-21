@@ -166,8 +166,7 @@ static inline void publishConfigSnapshot()
   doc["subnet"] = config.subnet;
   doc["ota_manifest_url"] = config.ota_manifest_url;
   doc["update_server"] = config.update_server;
-  doc["config_version"] = config.config_version; // opzionale
-  doc["config_version"] = config.config_version; // <- chiave
+  doc["config_version"] = config.config_version;
   doc["device_id"] = deviceId;
 
   String out;
