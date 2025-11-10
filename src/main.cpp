@@ -1,372 +1,254 @@
-#pragma once
+#include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
-#include <WiFiClient.h>
-#include <WiFiClientSecure.h>
-#include <PubSubClient.h>
+#include <Wire.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 #include <ArduinoJson.h>
-#include <FS.h>
 #include <SPIFFS.h>
-#include <time.h>
+#include <time.h> // per NTP/timestamp
 
 #include "config.h"
+#include "mail.h"
+#include "webserver.h"
+#include "mqtt.h"
 #include "config_api.h"
+#include "logger.h"
 
-unsigned long lastMqttPublish = 0;
-const unsigned long mqttInterval = 15000; // 15s
+#include "update/UpdateManager.h"
+#include "update/FirmwareUpdateStrategy.h"
+#include "update/ConfigUpdateStrategy.h"
 
-extern Config config;
-extern int soilValue;
-extern int soilPercent;
-extern String deviceId;
-
-// Puntatori client MQTT
-extern WiFiClient *plainClient;
-extern WiFiClientSecure *secureClient;
-extern PubSubClient mqttClient;
-
-// ====================== UTIL ======================
-static inline bool timeIsValid()
-{
-  time_t nowSec;
-  return (time(&nowSec) && nowSec > 1700000000); // ~2023+
+extern "C" {
+  #include "esp_ota_ops.h"
+  #include "esp_task_wdt.h"
+  #include "esp_system.h"
 }
 
-static inline unsigned long long epochMs()
-{
-  time_t nowSec;
-  if (time(&nowSec) && nowSec > 1700000000)
-  {
-    return (unsigned long long)nowSec * 1000ULL;
-  }
-  return 0;
-}
+// ----------------- Variabili globali -----------------
+Config config;
 
-// ====================== DEVICE ID ======================
-static inline void setupDeviceId()
-{
-  deviceId = WiFi.macAddress();
-  deviceId.replace(":", "");
-  deviceId.toLowerCase();
-  deviceId = "bonsai-" + deviceId;
-}
+WiFiClient *plainClient = nullptr;
+WiFiClientSecure *secureClient = nullptr;
+PubSubClient mqttClient;
 
-// ====================== MQTT PUB ======================
-static inline void publishMqtt(const char *topic, const String &payload, bool retain = false)
-{
-  if (mqttClient.connected())
-  {
-    mqttClient.publish(topic, payload.c_str(), retain);
-  }
-}
+static UpdateManager updater;
+static FirmwareUpdateStrategy *fwStrategy = nullptr;
 
-// ====================== CONFIG MANAGEMENT ======================
-static inline bool isNewerConfigVersion(const String &incoming, const String &current)
-{
-  if (incoming.length() == 0)
-    return false;
-  if (current.length() == 0)
-    return true;
-  return incoming != current && incoming > current;
-}
+//String deviceId = String(ESP.getChipModel());
+String deviceId = "";
 
-static inline bool applyConfigJson(const String &json)
-{
-  StaticJsonDocument<1024> doc;
-  auto err = deserializeJson(doc, json);
-  if (err)
-  {
-    Serial.printf("[CONFIG] Errore parsing JSON: %s\n", err.c_str());
-    return false;
-  }
+RTC_DATA_ATTR int bootCount = 0;
+Preferences prefs;
 
-  if (doc.containsKey("wifi_ssid")) config.wifi_ssid = doc["wifi_ssid"].as<String>();
-  if (doc.containsKey("wifi_password")) config.wifi_password = doc["wifi_password"].as<String>();
-  if (doc.containsKey("mqtt_broker")) config.mqtt_broker = doc["mqtt_broker"].as<String>();
-  if (doc.containsKey("mqtt_port")) config.mqtt_port = doc["mqtt_port"].as<int>();
-  if (doc.containsKey("mqtt_username")) config.mqtt_username = doc["mqtt_username"].as<String>();
-  if (doc.containsKey("mqtt_password")) config.mqtt_password = doc["mqtt_password"].as<String>();
-  if (doc.containsKey("sensor_pin")) config.sensor_pin = doc["sensor_pin"].as<int>();
-  if (doc.containsKey("pump_pin")) config.pump_pin = doc["pump_pin"].as<int>();
-  if (doc.containsKey("relay_pin")) config.relay_pin = doc["relay_pin"].as<int>();
-  if (doc.containsKey("battery_pin")) config.battery_pin = doc["battery_pin"].as<int>();
-  if (doc.containsKey("moisture_threshold")) config.moisture_threshold = doc["moisture_threshold"].as<int>();
-  if (doc.containsKey("pump_duration")) config.pump_duration = doc["pump_duration"].as<int>();
-  if (doc.containsKey("measurement_interval")) config.measurement_interval = doc["measurement_interval"].as<int>();
-  if (doc.containsKey("use_pump")) config.use_pump = doc["use_pump"].as<bool>();
-  if (doc.containsKey("debug")) config.debug = doc["debug"].as<bool>();
-  if (doc.containsKey("sleep_hours")) config.sleep_hours = doc["sleep_hours"].as<int>();
-  if (doc.containsKey("use_dhcp")) config.use_dhcp = doc["use_dhcp"].as<bool>();
-  if (doc.containsKey("ip_address")) config.ip_address = doc["ip_address"].as<String>();
-  if (doc.containsKey("gateway")) config.gateway = doc["gateway"].as<String>();
-  if (doc.containsKey("subnet")) config.subnet = doc["subnet"].as<String>();
-  if (doc.containsKey("ota_manifest_url")) config.ota_manifest_url = doc["ota_manifest_url"].as<String>();
-  if (doc.containsKey("update_server")) config.update_server = doc["update_server"].as<String>();
-  if (doc.containsKey("config_version")) config.config_version = doc["config_version"].as<String>();
+int soilValue = 0;
+int soilPercent = 0;
 
-  if (!saveConfig(config))
-  {
-    Serial.println("[CONFIG] Salvataggio fallito");
-    return false;
-  }
-  return true;
-}
+// ===== SYSLOG target (cambia IP) =====
+static const char* SYSLOG_HOST = "192.168.1.10";
+static const uint16_t SYSLOG_PORT = 5140;
+static const char* SYSLOG_APP = "bonsai-esp32";
+static const char* SYSLOG_HOSTNAME = "bonsai-esp32";
 
-static inline void publishConfigSnapshot()
-{
-  StaticJsonDocument<1024> doc;
-  doc["wifi_ssid"] = config.wifi_ssid;
-  doc["wifi_password"] = config.wifi_password;
-  doc["mqtt_broker"] = config.mqtt_broker;
-  doc["mqtt_port"] = config.mqtt_port;
-  doc["mqtt_username"] = config.mqtt_username;
-  doc["mqtt_password"] = config.mqtt_password;
-  doc["sensor_pin"] = config.sensor_pin;
-  doc["pump_pin"] = config.pump_pin;
-  doc["relay_pin"] = config.relay_pin;
-  doc["battery_pin"] = config.battery_pin;
-  doc["moisture_threshold"] = config.moisture_threshold;
-  doc["pump_duration"] = config.pump_duration;
-  doc["measurement_interval"] = config.measurement_interval;
-  doc["use_pump"] = config.use_pump;
-  doc["debug"] = config.debug;
-  doc["sleep_hours"] = config.sleep_hours;
-  doc["use_dhcp"] = config.use_dhcp;
-  doc["ip_address"] = config.ip_address;
-  doc["gateway"] = config.gateway;
-  doc["subnet"] = config.subnet;
-  doc["ota_manifest_url"] = config.ota_manifest_url;
-  doc["update_server"] = config.update_server;
-  doc["config_version"] = config.config_version;
-  doc["device_id"] = deviceId;
-
-  String out;
-  serializeJson(doc, out);
-  String topic = "bonsai/" + deviceId + "/config";
-  publishMqtt(topic.c_str(), out, true);
-}
-
-// ====================== CALLBACK ======================
-static inline void mqttCallback(char *topic, byte *payload, unsigned int length)
-{
-  String message;
-  message.reserve(length);
-  for (unsigned int i = 0; i < length; i++)
-    message += (char)payload[i];
-
-  if (config.debug)
-    Serial.printf("[MQTT] Topic: %s | Msg: %s\n", topic, message.c_str());
-
-  const String t(topic);
-  String msg = message;
-  msg.trim();
-  String msgLower = msg;
-  msgLower.toLowerCase();
-
-  // parse JSON payload {"pump":"on"}
-  if (msg.startsWith("{"))
-  {
-    StaticJsonDocument<128> j;
-    DeserializationError je = deserializeJson(j, msg);
-    if (!je && j.containsKey("pump"))
-    {
-      msgLower = String(j["pump"].as<const char *>());
-      msgLower.toLowerCase();
-    }
-  }
-
-  // CONFIG: set (global o per-device)
-  if (t == "bonsai/config/set" || t == ("bonsai/config/set/" + deviceId))
-  {
-    const bool ok = applyConfigJson(msg);
-    publishMqtt("bonsai/config/ack", ok ? "{\"ok\":true,\"source\":\"set\"}" : "{\"ok\":false,\"source\":\"set\"}");
-    if (ok)
-    {
-      publishConfigSnapshot();
-      delay(300);
-      ESP.restart();
-    }
-    return;
-  }
-
-  // CONFIG: retained snapshot
-  if (t == "bonsai/config" || t == ("bonsai/" + deviceId + "/config"))
-  {
-    StaticJsonDocument<256> j;
-    if (deserializeJson(j, msg) == DeserializationError::Ok)
-    {
-      const String incomingVer = j["config_version"] | "";
-      if (isNewerConfigVersion(incomingVer, config.config_version))
-      {
-        const bool ok = applyConfigJson(msg);
-        publishMqtt("bonsai/config/ack", ok ? "{\"ok\":true,\"source\":\"retained\"}" : "{\"ok\":false,\"source\":\"retained\"}");
-        if (ok)
-        {
-          publishConfigSnapshot();
-          delay(300);
-          ESP.restart();
-        }
-      }
-      else if (config.debug)
-        Serial.println("[CONFIG] Retained uguale/vecchio: ignorato");
-    }
-    else if (config.debug)
-      Serial.println("[CONFIG] Retained non-JSON: ignorato");
-    return;
-  }
-
-  // PUMP COMMAND (solo per il device)
-  if (t == ("bonsai/" + deviceId + "/command/pump"))
-  {
-    const bool turnOn = (msgLower == "on");
-    const bool turnOff = (msgLower == "off");
-    if (!turnOn && !turnOff)
-      return;
-
-    if (turnOn)
-    {
-      digitalWrite(config.pump_pin, LOW);
-      publishMqtt(("bonsai/" + deviceId + "/status/pump").c_str(), "on", true);
-
-      const unsigned long long ms = epochMs();
-      if (ms > 0)
-      {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%llu", ms);
-        publishMqtt(("bonsai/" + deviceId + "/status/last_on").c_str(), String(buf), true);
-      }
-    }
-    else
-    {
-      digitalWrite(config.pump_pin, HIGH);
-      publishMqtt(("bonsai/" + deviceId + "/status/pump").c_str(), "off", true);
-    }
-    return;
-  }
-
-  // REBOOT / RESTART
-  if (t == ("bonsai/" + deviceId + "/command/reboot") || t == ("bonsai/" + deviceId + "/command/restart"))
-  {
-    ESP.restart();
-    return;
-  }
-
-  // OTA TRIGGER
-  if (t == ("bonsai/" + deviceId + "/command/ota") || t == ("bonsai/ota/force/" + deviceId))
-  {
-    extern void triggerFirmwareCheck();
-    triggerFirmwareCheck();
-    return;
-  }
-
-  // Handler legacy compatibilità
-  handleMqttConfigCommands(topic, payload, length);
-}
-
-// ====================== CONNECTION ======================
-static inline void connectMqtt()
-{
-  mqttClient.setServer(config.mqtt_broker.c_str(), config.mqtt_port);
-  mqttClient.setCallback(mqttCallback);
-
-  while (!mqttClient.connected())
-  {
-    Serial.printf("[MQTT] Connessione a %s:%d...\n", config.mqtt_broker.c_str(), config.mqtt_port);
-
-    bool ok = mqttClient.connect(
-        deviceId.c_str(),
-        config.mqtt_username.c_str(),
-        config.mqtt_password.c_str(),
-        ("bonsai/" + deviceId + "/status/online").c_str(),
-        1,
-        true,
-        "0"
-    );
-
-    if (ok)
-    {
-      Serial.println("✅ MQTT connesso!");
-      publishMqtt(("bonsai/" + deviceId + "/status/online").c_str(), "1", true);
-      publishMqtt(("bonsai/" + deviceId + "/status/device_id").c_str(), deviceId, true);
-
-      // Sottoscrizioni per-device
-      mqttClient.subscribe(("bonsai/" + deviceId + "/command/pump").c_str());
-      mqttClient.subscribe(("bonsai/" + deviceId + "/command/reboot").c_str());
-      mqttClient.subscribe(("bonsai/" + deviceId + "/command/restart").c_str());
-      mqttClient.subscribe(("bonsai/" + deviceId + "/command/ota").c_str());
-      mqttClient.subscribe(("bonsai/" + deviceId + "/config").c_str());
-      mqttClient.subscribe(("bonsai/config/set/" + deviceId).c_str());
-
-      // Compatibilità globale
-      mqttClient.subscribe("bonsai/config/set");
-      mqttClient.subscribe("bonsai/config");
-      mqttClient.subscribe("bonsai/ota/available");
-
-      publishConfigSnapshot();
-    }
-    else
-    {
-      Serial.print("❌ Fallita. Stato: ");
-      Serial.println(mqttClient.state());
-      delay(2000);
-    }
-  }
-}
-
-// ====================== LOOP ======================
-static inline void loopMqtt()
-{
-  if (!mqttClient.connected())
-    connectMqtt();
-
-  mqttClient.loop();
-
-  const unsigned long now = millis();
-  if (now - lastMqttPublish > mqttInterval)
-  {
-    lastMqttPublish = now;
-
-    // JSON snapshot dati
-    StaticJsonDocument<256> data;
-    data["humidity"] = soilPercent;
-    data["battery"] = analogRead(config.battery_pin);
-    data["temperature"] = 0;
-    data["rssi"] = WiFi.RSSI();
+// ----------------- Utility -----------------
+static String currentAppVersion() {
 #ifdef FIRMWARE_VERSION
-    data["firmware"] = FIRMWARE_VERSION;
+  return String(FIRMWARE_VERSION);
+#else
+  const esp_app_desc_t *app = esp_ota_get_app_description();
+  if (app && app->version[0]) return String(app->version);
+  return "unknown";
 #endif
-    data["timestamp"] = epochMs();
+}
 
-    String payload;
-    serializeJson(data, payload);
-    String topic = "bonsai/" + deviceId + "/data";
-    publishMqtt(topic.c_str(), payload, false);
-
-    // last_seen
-    if (timeIsValid())
-      publishMqtt(("bonsai/" + deviceId + "/status/last_seen").c_str(), String((long long)epochMs()), true);
-
-    const bool pumpState = (digitalRead(config.pump_pin) == LOW);
-    publishMqtt(("bonsai/" + deviceId + "/status/pump").c_str(), pumpState ? "on" : "off", true);
+// ----------------- OTA da MQTT -----------------
+void otaCheckNow() {
+  if (!fwStrategy) return;
+  if (fwStrategy->checkForUpdate()) {
+    if (fwStrategy->performUpdate()) {
+      Serial.println("✅ OTA eseguito");
+      LOGI("OTA update done");
+    } else {
+      Serial.println("❌ OTA fallito");
+      LOGE("OTA update failed");
+    }
+  } else {
+    if (config.debug) {
+      Serial.println("ℹ️ Nessun OTA disponibile");
+      LOGI("No OTA available");
+    }
   }
 }
 
-// ====================== SETUP ======================
-static inline void setupMqtt()
-{
-  setupDeviceId();
-
-  if (config.mqtt_port == 1883)
-  {
-    plainClient = new WiFiClient();
-    mqttClient.setClient(*plainClient);
+static bool waitForTime(unsigned long timeoutMs = 10000) {
+  unsigned long start = millis();
+  while (millis() - start < timeoutMs) {
+    if (timeIsValid()) return true; // viene da mqtt.h
+    delay(200);
   }
-  else
-  {
-    secureClient = new WiFiClientSecure();
-    secureClient->setInsecure();
-    mqttClient.setClient(*secureClient);
+  return false;
+}
+
+// ----------------- WiFi/NTP -----------------
+void setup_wifi() {
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(config.wifi_ssid);
+
+  WiFi.begin(config.wifi_ssid.c_str(), config.wifi_password.c_str());
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi connected");
+  Serial.println(WiFi.localIP());
+
+  // Inizializza logger UDP (dopo WiFi)
+  Logger::begin(SYSLOG_HOST, SYSLOG_PORT, SYSLOG_HOSTNAME, SYSLOG_APP, LOG_INFO);
+
+  // TZ Europa/Roma (CET/CEST) + NTP
+  setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
+  tzset();
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+
+  // attesa minima della sync NTP
+  if (waitForTime()) {
+    if (config.debug) Serial.println("[TIME] NTP OK");
+    LOGI("NTP sync OK");
+  } else {
+    if (config.debug) Serial.println("[TIME] NTP non sincronizzato entro il timeout");
+    LOGW("NTP sync timeout");
+  }
+}
+
+// ----------------- Sensore -----------------
+int readSoil() {
+  int raw = analogRead(config.sensor_pin);
+  int perc = map(raw, 4095, 0, 0, 100);
+  Serial.printf("Soil raw: %d, percentage: %d\n", raw, perc);
+  LOGI("Soil raw=%d perc=%d", raw, perc);
+  soilValue = raw;
+  soilPercent = perc;
+  return perc;
+}
+
+// ----------------- Pompa -----------------
+void turnOnPump() {
+  Serial.println("Turning ON pump");
+  LOGW("Pump ON for %ds", config.pump_duration);
+  digitalWrite(config.pump_pin, LOW);
+
+  // Stato pompa (retained)
+  publishMqtt("bonsai/status/pump", "on", true);
+  // Timestamp ultima accensione (ms)
+  char buf[32];
+  unsigned long long ms = epochMs();
+  if (ms > 0) {
+    snprintf(buf, sizeof(buf), "%llu", ms);
+    publishMqtt("bonsai/status/last_on", buf, true);
+  }
+}
+
+void turnOffPump() {
+  Serial.println("Turning OFF pump");
+  LOGW("Pump OFF");
+  digitalWrite(config.pump_pin, HIGH);
+
+  publishMqtt("bonsai/status/pump", "off", true);
+}
+
+// ----------------- Setup -----------------
+void setup() {
+  Serial.begin(115200);
+  SPIFFS.begin(true);
+  delay(100);
+  // segna app valida post-OTA
+  esp_ota_mark_app_valid_cancel_rollback();
+
+  Serial.printf("[📦] Firmware version: %s\n", currentAppVersion().c_str());
+
+  if (prefs.begin("bonsai", false)) {
+    if (!prefs.isKey("fw_ver")) {
+      prefs.putString("fw_ver", currentAppVersion());
+    }
+    prefs.end();
   }
 
-  mqttClient.setCallback(mqttCallback);
-  connectMqtt();
+  ++bootCount;
+  Serial.printf("[📦] Boot count: %d\n", bootCount);
+
+  if (!loadConfig(config)) {
+    Serial.println("[✖] Failed to load config.json");
+    LOGE("Failed to load config.json");
+    return;
+  }
+  Serial.println("[✔] Config loaded successfully!");
+  LOGI("Config loaded");
+
+  setup_wifi();
+
+  LOGI("--- BOOT --- ver=%s", currentAppVersion().c_str());
+  LOGI("Reset reason=%s", Logger::resetReasonStr(esp_reset_reason()));
+  LOGI("WiFi=%s RSSI=%d IP=%s FreeHeap=%u",
+       (WiFi.status()==WL_CONNECTED?"OK":"DOWN"),
+       WiFi.RSSI(),
+       WiFi.localIP().toString().c_str(),
+       ESP.getFreeHeap());
+
+  // Watchdog per blocchi silenziosi
+  esp_task_wdt_init(8, true);
+  esp_task_wdt_add(NULL);
+
+  setupMqtt();
+   // Se vuoi anche log minimi via MQTT (WARNING/ERROR), abilita e passa una lambda di publish:
+  Logger::enableMqtt(true);
+  Logger::setMqttPublish([](const char* topic, const char* payload, bool retain){
+    publishMqtt(topic, payload, retain);
+  });
+  // Aggiornamenti (OTA/config)
+  fwStrategy = new FirmwareUpdateStrategy();
+  updater.registerStrategy(fwStrategy);
+  updater.registerStrategy(new ConfigUpdateStrategy());
+  updater.runAll();
+  if (config.debug) {
+    Serial.println("[🔄] Update check complete");
+    LOGI("Update check complete");
+  }
+
+  pinMode(config.led_pin, OUTPUT);
+  pinMode(config.sensor_pin, INPUT);
+  pinMode(config.pump_pin, OUTPUT);
+  digitalWrite(config.pump_pin, HIGH); // relè idle (active-LOW)
+
+  ArduinoOTA.begin();
+  setup_webserver(config.pump_pin); // ✅ mantenuto
+  // Misura e (eventualmente) irriga
+  int perc = readSoil();
+  if (perc < config.moisture_threshold) {
+    Serial.println("Soil dry, condition met");
+    LOGI("Soil dry, condition met (perc=%d < thr=%d)", perc, config.moisture_threshold);
+    if (config.use_pump) {
+      turnOnPump();
+      delay(config.pump_duration * 1000);
+      turnOffPump();
+    }
+  } else {
+    Serial.println("Soil OK");
+    LOGI("Soil OK (perc=%d)", perc);
+  }
+
+  if (!config.debug) {
+    esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
+    Serial.printf("Sleeping for %d hours\n", config.sleep_hours);
+    LOGI("Sleeping for %d hours", config.sleep_hours);
+    delay(200);
+    esp_deep_sleep_start();
+  }
+}
+
+// ----------------- Loop -----------------
+void loop() {
+  ArduinoOTA.handle();
+  loopMqtt();
+  esp_task_wdt_reset(); // reset watchdog
 }

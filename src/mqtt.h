@@ -17,7 +17,6 @@ const unsigned long mqttInterval = 15000; // 15s
 extern Config config;
 extern int soilValue;
 extern int soilPercent;
-
 extern String deviceId;
 
 // Puntatori client MQTT
@@ -25,7 +24,10 @@ extern WiFiClient *plainClient;
 extern WiFiClientSecure *secureClient;
 extern PubSubClient mqttClient;
 
-// ------- Utils -------
+// =======================================================
+// ===================== UTILITIES =======================
+// =======================================================
+
 // ------- Time utils -------
 static inline bool timeIsValid()
 {
@@ -40,11 +42,10 @@ static inline unsigned long long epochMs()
   {
     return (unsigned long long)nowSec * 1000ULL;
   }
-  return 0; // <-- niente fallback a millis() per evitare 1970
+  return 0; // niente fallback a millis()
 }
 
-// ---------------- Device ID ----------------
-
+// ------- Device ID -------
 static inline void setupDeviceId()
 {
   deviceId = WiFi.macAddress();
@@ -53,24 +54,21 @@ static inline void setupDeviceId()
   deviceId = "bonsai-" + deviceId;
 }
 
-static inline void publishMqtt(const char *topic, const String &payload, bool retain = false)
+// ------- Publish helper -------
+static inline void publishMqtt(const String &topic, const String &payload, bool retain = false)
 {
   if (mqttClient.connected())
-  {
-    mqttClient.publish(topic, payload.c_str(), retain);
-  }
+    mqttClient.publish(topic.c_str(), payload.c_str(), retain);
 }
 
-// ---------------- CONFIG via MQTT ----------------
+// =======================================================
+// =================== CONFIG MANAGEMENT =================
+// =======================================================
 
-// ---- util: decide se è una config "nuova" ----
 static inline bool isNewerConfigVersion(const String &incoming, const String &current)
 {
-  if (incoming.length() == 0)
-    return false; // niente versione => non auto-applicare
-  if (current.length() == 0)
-    return true;
-  // timestamp YYYYMMDDHHmmss o ULID/stringa: confronto lessicografico va bene se monotono
+  if (incoming.isEmpty()) return false;
+  if (current.isEmpty()) return true;
   return incoming != current && incoming > current;
 }
 
@@ -84,52 +82,30 @@ static inline bool applyConfigJson(const String &json)
     return false;
   }
 
-  if (doc.containsKey("wifi_ssid"))
-    config.wifi_ssid = doc["wifi_ssid"].as<String>();
-  if (doc.containsKey("wifi_password"))
-    config.wifi_password = doc["wifi_password"].as<String>();
-  if (doc.containsKey("mqtt_broker"))
-    config.mqtt_broker = doc["mqtt_broker"].as<String>();
-  if (doc.containsKey("mqtt_port"))
-    config.mqtt_port = doc["mqtt_port"].as<int>();
-  if (doc.containsKey("mqtt_username"))
-    config.mqtt_username = doc["mqtt_username"].as<String>();
-  if (doc.containsKey("mqtt_password"))
-    config.mqtt_password = doc["mqtt_password"].as<String>();
-  if (doc.containsKey("sensor_pin"))
-    config.sensor_pin = doc["sensor_pin"].as<int>();
-  if (doc.containsKey("pump_pin"))
-    config.pump_pin = doc["pump_pin"].as<int>();
-  if (doc.containsKey("relay_pin"))
-    config.relay_pin = doc["relay_pin"].as<int>();
-  if (doc.containsKey("battery_pin"))
-    config.battery_pin = doc["battery_pin"].as<int>();
-  if (doc.containsKey("moisture_threshold"))
-    config.moisture_threshold = doc["moisture_threshold"].as<int>();
-  if (doc.containsKey("pump_duration"))
-    config.pump_duration = doc["pump_duration"].as<int>();
-  if (doc.containsKey("measurement_interval"))
-    config.measurement_interval = doc["measurement_interval"].as<int>();
-  if (doc.containsKey("use_pump"))
-    config.use_pump = doc["use_pump"].as<bool>();
-  if (doc.containsKey("debug"))
-    config.debug = doc["debug"].as<bool>();
-  if (doc.containsKey("sleep_hours"))
-    config.sleep_hours = doc["sleep_hours"].as<int>();
-  if (doc.containsKey("use_dhcp"))
-    config.use_dhcp = doc["use_dhcp"].as<bool>();
-  if (doc.containsKey("ip_address"))
-    config.ip_address = doc["ip_address"].as<String>();
-  if (doc.containsKey("gateway"))
-    config.gateway = doc["gateway"].as<String>();
-  if (doc.containsKey("subnet"))
-    config.subnet = doc["subnet"].as<String>();
-  if (doc.containsKey("ota_manifest_url"))
-    config.ota_manifest_url = doc["ota_manifest_url"].as<String>();
-  if (doc.containsKey("update_server"))
-    config.update_server = doc["update_server"].as<String>();
-  if (doc.containsKey("config_version"))
-    config.config_version = doc["config_version"].as<String>();
+  // Aggiorna tutti i campi configurabili
+  if (doc.containsKey("wifi_ssid")) config.wifi_ssid = doc["wifi_ssid"].as<String>();
+  if (doc.containsKey("wifi_password")) config.wifi_password = doc["wifi_password"].as<String>();
+  if (doc.containsKey("mqtt_broker")) config.mqtt_broker = doc["mqtt_broker"].as<String>();
+  if (doc.containsKey("mqtt_port")) config.mqtt_port = doc["mqtt_port"].as<int>();
+  if (doc.containsKey("mqtt_username")) config.mqtt_username = doc["mqtt_username"].as<String>();
+  if (doc.containsKey("mqtt_password")) config.mqtt_password = doc["mqtt_password"].as<String>();
+  if (doc.containsKey("sensor_pin")) config.sensor_pin = doc["sensor_pin"].as<int>();
+  if (doc.containsKey("pump_pin")) config.pump_pin = doc["pump_pin"].as<int>();
+  if (doc.containsKey("relay_pin")) config.relay_pin = doc["relay_pin"].as<int>();
+  if (doc.containsKey("battery_pin")) config.battery_pin = doc["battery_pin"].as<int>();
+  if (doc.containsKey("moisture_threshold")) config.moisture_threshold = doc["moisture_threshold"].as<int>();
+  if (doc.containsKey("pump_duration")) config.pump_duration = doc["pump_duration"].as<int>();
+  if (doc.containsKey("measurement_interval")) config.measurement_interval = doc["measurement_interval"].as<int>();
+  if (doc.containsKey("use_pump")) config.use_pump = doc["use_pump"].as<bool>();
+  if (doc.containsKey("debug")) config.debug = doc["debug"].as<bool>();
+  if (doc.containsKey("sleep_hours")) config.sleep_hours = doc["sleep_hours"].as<int>();
+  if (doc.containsKey("use_dhcp")) config.use_dhcp = doc["use_dhcp"].as<bool>();
+  if (doc.containsKey("ip_address")) config.ip_address = doc["ip_address"].as<String>();
+  if (doc.containsKey("gateway")) config.gateway = doc["gateway"].as<String>();
+  if (doc.containsKey("subnet")) config.subnet = doc["subnet"].as<String>();
+  if (doc.containsKey("ota_manifest_url")) config.ota_manifest_url = doc["ota_manifest_url"].as<String>();
+  if (doc.containsKey("update_server")) config.update_server = doc["update_server"].as<String>();
+  if (doc.containsKey("config_version")) config.config_version = doc["config_version"].as<String>();
 
   if (!saveConfig(config))
   {
@@ -139,10 +115,12 @@ static inline bool applyConfigJson(const String &json)
   return true;
 }
 
-// ---------------- PUBLISH CONFIG SNAPSHOT ----------------
+// =======================================================
+// ================= CONFIG SNAPSHOT PUB =================
+// =======================================================
+
 static inline void publishConfigSnapshot()
 {
-  // serializza l’intera config corrente e pubblica RETAINED
   StaticJsonDocument<1024> doc;
   doc["wifi_ssid"] = config.wifi_ssid;
   doc["wifi_password"] = config.wifi_password;
@@ -170,119 +148,129 @@ static inline void publishConfigSnapshot()
   doc["device_id"] = deviceId;
 
   String out;
-  out.reserve(1024);
   serializeJson(doc, out);
-  publishMqtt("bonsai/config", out, /*retain=*/true);
+
+  const String topic = "bonsai/" + deviceId + "/config";
+  publishMqtt(topic, out, true);
 }
 
-// ---------------- CALLBACK MQTT ----------------
+// =======================================================
+// ===================== MQTT CALLBACK ===================
+// =======================================================
+
 static inline void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
-  // 1) Ricostruisci il payload in una String
   String message;
   message.reserve(length);
-  for (unsigned int i = 0; i < length; i++) {
+  for (unsigned int i = 0; i < length; i++)
     message += (char)payload[i];
-  }
 
-  // 2) Debug
-  if (config.debug) {
+  if (config.debug)
     Serial.printf("[MQTT] Topic: %s | Msg: %s\n", topic, message.c_str());
-  }
 
-  // 3) Normalizza topic e payload (una sola dichiarazione!)
   const String t(topic);
-  String msg = message; 
+  String msg = message;
   msg.trim();
-  String msgLower = msg; 
+  String msgLower = msg;
   msgLower.toLowerCase();
 
-  // 4) Accetta anche payload JSON (es. {"pump":"on"})
-  if (msg.startsWith("{")) {
+  // Supporta JSON {"pump":"on"}
+  if (msg.startsWith("{"))
+  {
     StaticJsonDocument<128> j;
     DeserializationError je = deserializeJson(j, msg);
-    if (!je && j.containsKey("pump")) {
-      msgLower = String(j["pump"].as<const char*>());
-      msgLower.toLowerCase();
-    }
+    if (!je && j.containsKey("pump"))
+      msgLower = String(j["pump"].as<const char *>());
   }
 
-  // ===== CONFIG: comando live (non retained)
-  if (t == "bonsai/config/set" || t == ("bonsai/config/set/" + deviceId)) {
+  // ===== CONFIG: comando diretto =====
+  if (t == "bonsai/config/set" || t == ("bonsai/" + deviceId + "/config/set"))
+  {
     const bool ok = applyConfigJson(msg);
-    publishMqtt("bonsai/config/ack", ok ? "{\"ok\":true,\"source\":\"set\"}" : "{\"ok\":false,\"source\":\"set\"}");
-    if (ok) {
-      publishConfigSnapshot();     // aggiorna lo snapshot retained
+    publishMqtt("bonsai/" + deviceId + "/config/ack", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+    if (ok)
+    {
+      publishConfigSnapshot();
       delay(300);
-      ESP.restart();               // riavvio consigliato
+      ESP.restart();
     }
     return;
   }
 
-  // ===== CONFIG: snapshot retained (mailbox)
-  if (t == "bonsai/config" || t == ("bonsai/config/" + deviceId)) {
+  // ===== CONFIG: retained snapshot =====
+  if (t == "bonsai/config" || t == ("bonsai/" + deviceId + "/config"))
+  {
     StaticJsonDocument<256> j;
-    if (deserializeJson(j, msg) == DeserializationError::Ok) {
+    if (deserializeJson(j, msg) == DeserializationError::Ok)
+    {
       const String incomingVer = j["config_version"] | "";
-      if (isNewerConfigVersion(incomingVer, config.config_version)) {
+      if (isNewerConfigVersion(incomingVer, config.config_version))
+      {
         const bool ok = applyConfigJson(msg);
-        publishMqtt("bonsai/config/ack", ok ? "{\"ok\":true,\"source\":\"retained\"}" : "{\"ok\":false,\"source\":\"retained\"}");
-        if (ok) {
+        publishMqtt("bonsai/" + deviceId + "/config/ack", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+        if (ok)
+        {
           publishConfigSnapshot();
           delay(300);
           ESP.restart();
         }
-      } else {
-        if (config.debug) Serial.println("[CONFIG] Retained uguale/vecchio: ignorato");
       }
-    } else {
-      if (config.debug) Serial.println("[CONFIG] Retained non-JSON: ignorato");
     }
     return;
   }
 
-  // ===== Comando pompa
-  if (t == "bonsai/command/pump") {
-    const bool turnOn  = (msgLower == "on");
-    const bool turnOff = (msgLower == "off");
-    if (!turnOn && !turnOff) return;
+  // ===== COMANDO POMPA =====
+  if (t == ("bonsai/" + deviceId + "/command/pump"))
+  {
+    const bool on = (msgLower == "on");
+    const bool off = (msgLower == "off");
+    if (!on && !off) return;
 
-    if (turnOn) {
+    const String topicBase = "bonsai/" + deviceId + "/status/";
+
+    if (on)
+    {
       digitalWrite(config.pump_pin, LOW);
-      publishMqtt("bonsai/status/pump", "on", true);
-
-      // pubblica last_on solo se l'ora è valida
+      publishMqtt(topicBase + "pump", "on", true);
       const unsigned long long ms = epochMs();
-      if (ms > 0) {
+      if (ms > 0)
+      {
         char buf[32];
         snprintf(buf, sizeof(buf), "%llu", ms);
-        publishMqtt("bonsai/status/last_on", String(buf), true);
+        publishMqtt(topicBase + "last_on", buf, true);
       }
-    } else {
+    }
+    else
+    {
       digitalWrite(config.pump_pin, HIGH);
-      publishMqtt("bonsai/status/pump", "off", true);
+      publishMqtt(topicBase + "pump", "off", true);
     }
     return;
   }
 
-  // ===== Reboot / restart
-  if (t == "bonsai/command/reboot" || t == "bonsai/command/restart") {
+  // ===== COMANDO REBOOT/RESTART =====
+  if (t == ("bonsai/" + deviceId + "/command/reboot") || t == ("bonsai/" + deviceId + "/command/restart"))
+  {
     ESP.restart();
     return;
   }
 
-  // ===== OTA trigger
-  if (t == "bonsai/ota/available" || t == ("bonsai/ota/force/" + deviceId)) {
+  // ===== OTA =====
+  if (t == ("bonsai/" + deviceId + "/command/ota") || t == ("bonsai/ota/force/" + deviceId))
+  {
     extern void triggerFirmwareCheck();
     triggerFirmwareCheck();
     return;
   }
 
-  // ===== Handler legacy (se esiste ancora)
+  // ===== Handler legacy =====
   handleMqttConfigCommands(topic, payload, length);
 }
 
-// ---------------- CONNESSIONE ----------------
+// =======================================================
+// ===================== CONNECTION ======================
+// =======================================================
+
 static inline void connectMqtt()
 {
   mqttClient.setServer(config.mqtt_broker.c_str(), config.mqtt_port);
@@ -292,43 +280,35 @@ static inline void connectMqtt()
   {
     Serial.printf("[MQTT] Connessione a %s:%d...\n", config.mqtt_broker.c_str(), config.mqtt_port);
 
-    // PubSubClient non ha setWill(): il LWT si passa qui
-    // connect(clientID, user, pass, willTopic, willQoS, willRetain, willMessage)
     bool ok = mqttClient.connect(
         deviceId.c_str(),
         config.mqtt_username.c_str(),
         config.mqtt_password.c_str(),
-        "bonsai/status/online", // will topic
-        1,                      // QoS
-        true,                   // retain
-        "0"                     // will payload (offline)
-    );
+        ("bonsai/" + deviceId + "/status/online").c_str(),
+        1,
+        true,
+        "0");
 
     if (ok)
     {
       Serial.println("✅ MQTT connesso!");
-      publishMqtt("bonsai/status/online", "1", true);
-      publishMqtt("bonsai/status/device_id", deviceId, true);
+      const String base = "bonsai/" + deviceId + "/";
+      publishMqtt(base + "status/online", "1", true);
+      publishMqtt(base + "status/device_id", deviceId, true);
 
-      // Sottoscrizioni COMANDI (mai retained)
-      mqttClient.subscribe("bonsai/command/pump");
-      mqttClient.subscribe("bonsai/command/reboot");
-      mqttClient.subscribe("bonsai/command/restart");
-      mqttClient.subscribe("bonsai/command/config/update"); // se lo usi ancora
-
-      // OTA
-      mqttClient.subscribe("bonsai/ota/available");
+      // Sottoscrizioni per il device
+      mqttClient.subscribe((base + "command/pump").c_str());
+      mqttClient.subscribe((base + "command/reboot").c_str());
+      mqttClient.subscribe((base + "command/restart").c_str());
+      mqttClient.subscribe((base + "command/ota").c_str());
+      mqttClient.subscribe((base + "config").c_str());
+      mqttClient.subscribe((base + "config/set").c_str());
       mqttClient.subscribe(("bonsai/ota/force/" + deviceId).c_str());
 
-      // CONFIG: set (comando) + per-device
-      mqttClient.subscribe("bonsai/config/set");
-      mqttClient.subscribe(("bonsai/config/set/" + deviceId).c_str());
-
-      // CONFIG: snapshot (lettura)
+      // Config globale retrocompatibile
       mqttClient.subscribe("bonsai/config");
-      mqttClient.subscribe(("bonsai/config/" + deviceId).c_str());
+      mqttClient.subscribe("bonsai/config/set");
 
-      // (facoltativo) pubblica lo snapshot appena connesso
       publishConfigSnapshot();
     }
     else
@@ -340,11 +320,15 @@ static inline void connectMqtt()
   }
 }
 
-// ---------------- LOOP ----------------
+// =======================================================
+// ======================== LOOP =========================
+// =======================================================
+
 static inline void loopMqtt()
 {
   if (!mqttClient.connected())
     connectMqtt();
+
   mqttClient.loop();
 
   const unsigned long now = millis();
@@ -352,26 +336,28 @@ static inline void loopMqtt()
   {
     lastMqttPublish = now;
 
-    if (timeIsValid())
-    {
-      publishMqtt("bonsai/status/last_seen", String((long long)epochMs()), true);
-    }
-    publishMqtt("bonsai/status/wifi", String(WiFi.RSSI()));
-#ifdef FIRMWARE_VERSION
-    publishMqtt("bonsai/info/firmware", FIRMWARE_VERSION, true);
-#endif
-    publishMqtt("bonsai/status/humidity", String(soilPercent));
-    publishMqtt("bonsai/status/temp", String(0));
+    const String base = "bonsai/" + deviceId + "/status/";
 
-    // Nota: batteria grezza — da normalizzare (%)
-    publishMqtt("bonsai/status/battery", String(analogRead(config.battery_pin)));
+    if (timeIsValid())
+      publishMqtt(base + "last_seen", String((long long)epochMs()), true);
+
+    publishMqtt(base + "wifi", String(WiFi.RSSI()), false);
+#ifdef FIRMWARE_VERSION
+    publishMqtt(base + "firmware", FIRMWARE_VERSION, true);
+#endif
+    publishMqtt(base + "humidity", String(soilPercent), false);
+    publishMqtt(base + "temp", "0", false);
+    publishMqtt(base + "battery", String(analogRead(config.battery_pin)), false);
 
     const bool pumpState = (digitalRead(config.pump_pin) == LOW);
-    publishMqtt("bonsai/status/pump", pumpState ? "on" : "off", true);
+    publishMqtt(base + "pump", pumpState ? "on" : "off", true);
   }
 }
 
-// ---------------- SETUP ----------------
+// =======================================================
+// ======================== SETUP ========================
+// =======================================================
+
 static inline void setupMqtt()
 {
   setupDeviceId();
@@ -384,7 +370,7 @@ static inline void setupMqtt()
   else
   {
     secureClient = new WiFiClientSecure();
-    secureClient->setInsecure(); // TODO: setCACert(...)
+    secureClient->setInsecure();
     mqttClient.setClient(*secureClient);
   }
 
