@@ -10,6 +10,8 @@ extern Config config;
 extern int soilValue;
 extern int soilPercent;
 
+bool mqttReady = false;
+
 extern WiFiClient* plainClient;
 extern WiFiClientSecure* secureClient;
 PubSubClient mqttClient;   // DEFINIZIONE UNICA
@@ -242,6 +244,7 @@ void connectMqtt()
     if (ok)
     {
       Serial.println("✅ MQTT connesso!");
+      mqttReady = true;     // ✔️ MQTT ora è utilizzabile
 
       const String base = "bonsai/" + deviceId + "/";
 

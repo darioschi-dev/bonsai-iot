@@ -23,6 +23,8 @@ extern WiFiClient* plainClient;
 extern WiFiClientSecure* secureClient;
 extern PubSubClient mqttClient;
 
+extern bool mqttReady;
+
 extern unsigned long lastMqttPublish;
 extern const unsigned long mqttInterval;
 
@@ -43,7 +45,10 @@ static inline unsigned long long epochMs() {
 }
 
 static inline void publishMqtt(const String& topic, const String& payload, bool retain = false) {
-  if (mqttClient.connected())
+    if (!mqttReady) {
+        return; // MQTT non pronto → ignora ma NON rompe niente
+    }
+    if (mqttClient.connected())
     mqttClient.publish(topic.c_str(), payload.c_str(), retain);
 }
 

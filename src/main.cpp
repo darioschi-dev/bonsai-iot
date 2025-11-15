@@ -1,3 +1,4 @@
+#include "MirrorSerial.h" 
 #include <Arduino.h>
 #include <Preferences.h>
 #include <WiFi.h>
@@ -15,6 +16,7 @@
 #include "mqtt.h"
 #include "config_api.h"
 #include "logger.h"
+#include "TelnetLogger.h"
 
 #include "update/UpdateManager.h"
 #include "update/FirmwareUpdateStrategy.h"
@@ -32,6 +34,8 @@ Config config;
 WiFiClient *plainClient = nullptr;
 WiFiClientSecure *secureClient = nullptr;
 
+extern String deviceId;
+
 static UpdateManager updater;
 static FirmwareUpdateStrategy *fwStrategy = nullptr;
 
@@ -48,6 +52,7 @@ static const char* SYSLOG_HOSTNAME = "bonsai-esp32";
 
 // ----------------- Debug MQTT helper -----------------
 static void debugLog(const String& msg) {
+  if (!mqttReady) return;
   if (deviceId.length() == 0) {
     publishMqtt("bonsai/debug", msg, false);
   } else {
@@ -159,11 +164,7 @@ void setup() {
   SPIFFS.begin(true);
   delay(100);
 
-  publishMqtt("bonsai/debug", "BOOT start", false);
-
   setupDeviceId();
-  debugLog("DEVICEID=" + deviceId);
-
   esp_ota_mark_app_valid_cancel_rollback();
   debugLog("FW=" + currentAppVersion());
 
@@ -184,13 +185,21 @@ void setup() {
   debugLog("CONFIG: loaded");
 
   setup_wifi();
+  
+  setupTelnetLogger("bonsai-esp32", 23);
 
   esp_task_wdt_init(8, true);
   esp_task_wdt_add(NULL);
 
-  debugLog("MQTT: connect start");
   setupMqtt();
+  debugLog("MQTT: connect start");
+
+  if(mqttReady) {
+    publishMqtt("bonsai/debug", "BOOT start", false);
+  }
+
   debugLog("MQTT: connected");
+  debugLog("DEVICEID=" + deviceId);
 
   Logger::enableMqtt(true);
   Logger::setMqttPublish([](const char* topic, const char* payload, bool retain){
@@ -241,6 +250,8 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
+  if (!mqttReady) return;
   loopMqtt();
+  loopTelnetLogger();
   esp_task_wdt_reset();
 }
