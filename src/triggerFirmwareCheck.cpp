@@ -18,11 +18,16 @@ static const uint32_t BACKOFF_MS = 24UL * 60UL * 60UL * 1000UL; // 24h
 
 // --- helpers NVS ---
 static bool isBackoffActive() {
-  Preferences p;
-  if (!p.begin(NVS_NS, true)) return false;
-  uint64_t until = p.getULong64(KEY_BACKOFF_UNTIL, 0);
-  p.end();
-  return until && millis() < until;
+    Preferences p;
+    if (!p.begin(NVS_NS, true)) return false;
+    uint64_t until = p.getULong64(KEY_BACKOFF_UNTIL, 0);
+    p.end();
+
+    time_t now = 0;
+    time(&now);
+    if (now < 1700000000) return false; // NTP non valido
+
+    return (until > 0) && (now < (time_t)until);
 }
 
 static void incFailAndMaybeBackoff() {
@@ -32,7 +37,8 @@ static void incFailAndMaybeBackoff() {
   fails++;
   p.putUInt(KEY_FAILS, fails);
   if (fails >= MAX_FAILS) {
-    uint64_t until = (uint64_t)millis() + BACKOFF_MS;
+    time_t now = 0; time(&now);
+    uint64_t until = (uint64_t) now + 86400; // 24h
     p.putULong64(KEY_BACKOFF_UNTIL, until);
     if (config.debug) Serial.printf("[OTA] Troppi fallimenti (%u). Backoff 24h.\n", fails);
   }

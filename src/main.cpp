@@ -31,12 +31,9 @@ Config config;
 
 WiFiClient *plainClient = nullptr;
 WiFiClientSecure *secureClient = nullptr;
-PubSubClient mqttClient;
 
 static UpdateManager updater;
 static FirmwareUpdateStrategy *fwStrategy = nullptr;
-
-String deviceId = "";
 
 RTC_DATA_ATTR int bootCount = 0;
 Preferences prefs;
@@ -87,7 +84,7 @@ void otaCheckNow() {
 }
 
 // ----------------- Time sync -----------------
-static bool waitForTime(unsigned long timeoutMs = 10000) {
+static bool timeIsValidLocal(unsigned long timeoutMs = 10000) {
   unsigned long start = millis();
   while (millis() - start < timeoutMs) {
     if (timeIsValid()) return true;
@@ -107,6 +104,7 @@ void setup_wifi() {
     delay(500);
     Serial.print(".");
   }
+
   Serial.println("\nWiFi connected");
   Serial.println(WiFi.localIP());
   debugLog("WIFI: connected");
@@ -117,7 +115,7 @@ void setup_wifi() {
   tzset();
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 
-  if (waitForTime()) debugLog("TIME: ok");
+  if (timeIsValidLocal()) debugLog("TIME: ok");
   else debugLog("TIME: timeout");
 }
 
@@ -136,7 +134,6 @@ void turnOnPump() {
   debugLog("PUMP: ON");
   digitalWrite(config.pump_pin, LOW);
 
-  // Stato pompa
   publishMqtt("bonsai/" + deviceId + "/status/pump", "on", true);
 
   char buf[32];
@@ -153,16 +150,17 @@ void turnOffPump() {
   publishMqtt("bonsai/" + deviceId + "/status/pump", "off", true);
 }
 
-// ----------------- Setup -----------------
+// =======================================================
+// ======================== SETUP ========================
+// =======================================================
+
 void setup() {
   Serial.begin(115200);
   SPIFFS.begin(true);
   delay(100);
 
-  // Dummy publish BEFORE everything
   publishMqtt("bonsai/debug", "BOOT start", false);
 
-  // Forza deviceId subito
   setupDeviceId();
   debugLog("DEVICEID=" + deviceId);
 
@@ -187,7 +185,6 @@ void setup() {
 
   setup_wifi();
 
-  // Watchdog
   esp_task_wdt_init(8, true);
   esp_task_wdt_add(NULL);
 
@@ -195,13 +192,11 @@ void setup() {
   setupMqtt();
   debugLog("MQTT: connected");
 
-  // Logger MQTT
   Logger::enableMqtt(true);
   Logger::setMqttPublish([](const char* topic, const char* payload, bool retain){
     publishMqtt(topic, payload, retain);
   });
 
-  // Update check
   debugLog("UPDATER: run");
   fwStrategy = new FirmwareUpdateStrategy();
   updater.registerStrategy(fwStrategy);
@@ -209,7 +204,6 @@ void setup() {
   updater.runAll();
   debugLog("UPDATER: done");
 
-  // GPIO
   pinMode(config.led_pin, OUTPUT);
   pinMode(config.sensor_pin, INPUT);
   pinMode(config.pump_pin, OUTPUT);
@@ -219,7 +213,6 @@ void setup() {
   setup_webserver(config.pump_pin);
   debugLog("WEBSERVER: started");
 
-  // Lettura e pompaggio
   int perc = readSoil();
   if (perc < config.moisture_threshold) {
     debugLog("SOIL: dry");
@@ -242,7 +235,10 @@ void setup() {
   debugLog("SETUP: complete");
 }
 
-// ----------------- Loop -----------------
+// =======================================================
+// ========================= LOOP ========================
+// =======================================================
+
 void loop() {
   ArduinoOTA.handle();
   loopMqtt();

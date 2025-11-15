@@ -2,6 +2,7 @@
 #include <FS.h>
 #include <SPIFFS.h>
 #include "config_api.h"
+#include "mqtt.h"     
 
 const char* CONFIG_PATH = "/config.json";
 
