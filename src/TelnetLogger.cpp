@@ -15,16 +15,16 @@ void setupTelnetLogger(const char* hostName, uint16_t port)
         return;
     }
 
-    telnet.setCallbackOnConnect([](String ip) {
+    telnet.onConnect([](String ip) {
         Serial.printf("[TELNET] Client connected: %s\n", ip.c_str());
         telnet.println("Welcome to bonsai-esp32 Telnet!");
     });
 
-    telnet.setCallbackOnDisconnect([](String ip) {
+    telnet.onDisconnect([](String ip) {
         Serial.printf("[TELNET] Client disconnected: %s\n", ip.c_str());
     });
 
-    telnet.setCallbackOnInputReceived([](String msg) {
+    telnet.onInputReceived([](String msg) {
         Serial.printf("[TELNET] Received: %s\n", msg.c_str());
     });
 
