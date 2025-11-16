@@ -1,5 +1,8 @@
 name: Build & Upload ESP32 Firmware OTA
 
+permissions:
+  contents: write   # CONSENTE DI PUSHARE TAG
+
 on:
   push:
     branches: [ master ]
@@ -73,20 +76,47 @@ jobs:
             TS=$(date +%Y%m%d%H%M)
 
             case "$MODE" in
-              semver)    VERSION="$TAG" ;;
-              timestamp) VERSION="$TS" ;;
-              combined)  VERSION="${TAG}+${TS}" ;;
-              *)         VERSION="${TAG}+${TS}" ;;
+              semver)
+                BASE="${TAG#v}"
+                IFS='.' read -r MA MI PA <<< "$BASE"
+                PA=$((PA+1))
+                VERSION="v${MA}.${MI}.${PA}"
+                ;;
+              timestamp)
+                VERSION="$TS"
+                ;;
+              combined)
+                VERSION="${TAG}+${TS}"
+                ;;
+              *)
+                VERSION="${TAG}+${TS}"
+                ;;
             esac
           fi
 
           echo "VERSION=$VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "mode=$MODE"       >> $GITHUB_OUTPUT
+      
+      - name: Show computed VERSION
+        run: echo "Computed VERSION is '${{ env.VERSION }}'"
+
+      - name: Create and push tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ env.VERSION }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "${VERSION}"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} "${VERSION}"
 
       - name: Build firmware (esp32-prod) with VERSION override
+        env:
+          VERSION: ${{ env.VERSION }}
         run: |
           VERSION_OVERRIDE="${VERSION}" pio run -e esp32-prod
+
       - name: Show firmware version
         run: grep -oP '(?<=#define FIRMWARE_VERSION ")[^"]+' include/version_auto.h
       - name: Upload firmware as artifact
