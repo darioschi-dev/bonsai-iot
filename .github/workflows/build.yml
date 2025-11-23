@@ -1,7 +1,7 @@
 name: Build & Upload ESP32 Firmware OTA
 
 permissions:
-  contents: write   # CONSENTE DI PUSHARE TAG
+  contents: write
 
 on:
   push:
@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       version_mode:
-        description: "Versioning mode"
+        description: "Versioning mode (override)"
         type: choice
-        required: true
+        required: false
         default: combined
         options:
           - semver
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout repository (with tags)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # serve per leggere i tag
+          fetch-depth: 0
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -51,34 +51,34 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
-      - name: Compute VERSION (semver / timestamp / combined)
+      - name: Compute VERSION (semver+timestamp automatic)
         id: version
         shell: bash
         run: |
           set -euo pipefail
 
-          # Inputs (solo con workflow_dispatch)
-          MODE="${{ github.event.inputs.version_mode || '' }}"
           FORCE="${{ github.event.inputs.force_version || '' }}"
+          MODE="${{ github.event.inputs.version_mode || '' }}"
 
-          # Se non è stato indicato nulla, default combined
+          # fallback automatico
           if [ -z "$MODE" ]; then MODE="combined"; fi
 
-          # Forza versione se richiesta
+          # Se forzata, prendiamo quella
           if [ -n "$FORCE" ]; then
             VERSION="$FORCE"
           else
-            # Ultimo tag semver (o v0.0.0 se assente)
-            TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+            # Ultimo tag semver
+            TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
             if [ -z "$TAG" ]; then TAG="v0.0.0"; fi
 
-            # Timestamp compatto (niente underscore)
+            # Timestamp compatto
             TS=$(date +%Y%m%d%H%M)
+
+            BASE="${TAG#v}"
+            IFS='.' read -r MA MI PA <<< "$BASE"
 
             case "$MODE" in
               semver)
-                BASE="${TAG#v}"
-                IFS='.' read -r MA MI PA <<< "$BASE"
                 PA=$((PA+1))
                 VERSION="v${MA}.${MI}.${PA}"
                 ;;
@@ -86,10 +86,12 @@ jobs:
                 VERSION="$TS"
                 ;;
               combined)
-                VERSION="${TAG}+${TS}"
+                PA=$((PA+1))
+                VERSION="v${MA}.${MI}.${PA}+${TS}"
                 ;;
               *)
-                VERSION="${TAG}+${TS}"
+                PA=$((PA+1))
+                VERSION="v${MA}.${MI}.${PA}+${TS}"
                 ;;
             esac
           fi
@@ -97,7 +99,7 @@ jobs:
           echo "VERSION=$VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "mode=$MODE"       >> $GITHUB_OUTPUT
-      
+
       - name: Show computed VERSION
         run: echo "Computed VERSION is '${{ env.VERSION }}'"
 
@@ -119,6 +121,7 @@ jobs:
 
       - name: Show firmware version
         run: grep -oP '(?<=#define FIRMWARE_VERSION ")[^"]+' include/version_auto.h
+
       - name: Upload firmware as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -132,8 +135,8 @@ jobs:
 
       - name: Upload firmware to OTA server
         env:
-          OTA_UPLOAD_URL: ${{ secrets.OTA_UPLOAD_URL }}   # es: https://.../upload-firmware
-          OTA_TOKEN:      ${{ secrets.OTA_TOKEN }}        # opzionale
+          OTA_UPLOAD_URL: ${{ secrets.OTA_UPLOAD_URL }}
+          OTA_TOKEN:      ${{ secrets.OTA_TOKEN }}
           VERSION:        ${{ env.VERSION }}
         run: |
           set -euo pipefail
@@ -150,7 +153,6 @@ jobs:
             AUTH=(-H "Authorization: Bearer ${OTA_TOKEN}")
           fi
 
-          # Invia sia 'version' (per compatibilità) sia 'version_file' (se il backend lo supporta)
           curl --fail-with-body -sS -m 120 -L \
                "${AUTH[@]}" \
                -F "firmware=@.pio/build/esp32-prod/firmware.bin;type=application/octet-stream;filename=firmware.bin" \
