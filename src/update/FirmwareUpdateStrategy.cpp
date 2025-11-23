@@ -165,16 +165,6 @@ bool fetchManifest(String &outVersion, String &outBinUrl)
   return true;
 }
 
-bool isNewer(const String &current, const String &remote)
-{
-  // timestamp remoto vs semver locale
-  if (remote.length() >= 8 && isDigit(remote[0]) && current.startsWith("v"))
-  {
-    return true;
-  }
-  return remote != current; // fallback: diverso = nuovo
-}
-
 // -------- API -------------------------------------------------------------
 
 bool FirmwareUpdateStrategy::checkForUpdate()
