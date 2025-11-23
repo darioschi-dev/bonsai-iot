@@ -69,7 +69,7 @@ jobs:
             VERSION="$FORCE"
           else
             # Ultimo tag semver (o v0.0.0 se assente)
-            TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
+            TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
             if [ -z "$TAG" ]; then TAG="v0.0.0"; fi
 
             # Timestamp compatto (niente underscore)
