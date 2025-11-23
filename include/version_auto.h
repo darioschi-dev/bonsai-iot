@@ -1,4 +1,4 @@
 #pragma once
 #define FIRMWARE_VERSION "v1.4.10"
-#define FIRMWARE_COMMIT  "6b12527"
-#define FIRMWARE_BUILD   "2025-11-15 17:16:02"
+#define FIRMWARE_COMMIT  "8577a77"
+#define FIRMWARE_BUILD   "2025-11-22 15:37:07"
