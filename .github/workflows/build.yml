@@ -50,8 +50,8 @@ jobs:
 
       - name: Install PlatformIO
         run: pip install platformio
-
-      - name: Compute VERSION (semver+timestamp automatic)
+        
+      - name: Compute VERSION (safe semver + timestamp)
         id: version
         shell: bash
         run: |
@@ -60,43 +60,56 @@ jobs:
           FORCE="${{ github.event.inputs.force_version || '' }}"
           MODE="${{ github.event.inputs.version_mode || '' }}"
 
-          # fallback automatico
+          # Default mode (for push)
           if [ -z "$MODE" ]; then MODE="combined"; fi
 
-          # Se forzata, prendiamo quella
+          # IF user forced version → use it directly
           if [ -n "$FORCE" ]; then
             VERSION="$FORCE"
-          else
-            # Ultimo tag semver
-            TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
-            if [ -z "$TAG" ]; then TAG="v0.0.0"; fi
-
-            # Timestamp compatto
-            TS=$(date +%Y%m%d%H%M)
-
-            BASE="${TAG#v}"
-            IFS='.' read -r MA MI PA <<< "$BASE"
-
-            case "$MODE" in
-              semver)
-                PA=$((PA+1))
-                VERSION="v${MA}.${MI}.${PA}"
-                ;;
-              timestamp)
-                VERSION="$TS"
-                ;;
-              combined)
-                PA=$((PA+1))
-                VERSION="v${MA}.${MI}.${PA}+${TS}"
-                ;;
-              *)
-                PA=$((PA+1))
-                VERSION="v${MA}.${MI}.${PA}+${TS}"
-                ;;
-            esac
+            echo "VERSION=$VERSION" >> $GITHUB_ENV
+            echo "mode=$MODE" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-          echo "VERSION=$VERSION"
+          echo "🔍 Recupero ultimo tag SEMVER valido…"
+
+          # Pick ONLY semver tags vX.Y.Z (strict!)
+          TAG=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+
+          if [ -z "$TAG" ]; then
+            echo "⚠️ Nessun tag semver trovato. Uso v0.0.0"
+            TAG="v0.0.0"
+          fi
+
+          echo "➡️ Ultimo tag valido: $TAG"
+
+          BASE="${TAG#v}"
+
+          # Extract MAJOR.MINOR.PATCH from clean semver
+          IFS='.' read -r MA MI PA <<< "$BASE"
+
+          # Compact timestamp
+          TS=$(date +%Y%m%d%H%M)
+
+          case "$MODE" in
+            semver)
+              PA=$((PA+1))
+              VERSION="v${MA}.${MI}.${PA}"
+              ;;
+            timestamp)
+              VERSION="$TS"
+              ;;
+            combined)
+              PA=$((PA+1))
+              VERSION="v${MA}.${MI}.${PA}+${TS}"
+              ;;
+            *)
+              PA=$((PA+1))
+              VERSION="v${MA}.${MI}.${PA}+${TS}"
+              ;;
+          esac
+
+          echo "Computed VERSION = $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "mode=$MODE"       >> $GITHUB_OUTPUT
 
