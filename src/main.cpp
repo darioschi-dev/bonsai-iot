@@ -20,7 +20,6 @@
 
 #include "update/UpdateManager.h"
 #include "update/FirmwareUpdateStrategy.h"
-#include "update/ConfigUpdateStrategy.h"
 
 extern "C" {
   #include "esp_ota_ops.h"
@@ -211,11 +210,7 @@ void setup() {
   // OTA FIRMWARE + CONFIG (strategia unica coordinata)
   // -------------------------------------------------------
   fwStrategy = new FirmwareUpdateStrategy();        // UNA SOLA istanza condivisa
-  auto* cfgStrategy = new ConfigUpdateStrategy(fwStrategy);
-
   updater.registerStrategy(fwStrategy);             // 1. firmware
-  updater.registerStrategy(cfgStrategy);            // 2. config
-
   updater.runAll();                                 // esegue eventuali update
   debugLog("UPDATER: done");
 
