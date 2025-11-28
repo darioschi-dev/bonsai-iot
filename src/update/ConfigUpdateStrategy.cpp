@@ -1,62 +1,95 @@
 #include "ConfigUpdateStrategy.h"
 #include "FirmwareUpdateStrategy.h"
+#include "../config.h"
+
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include "../config.h"
-#include "../config_api.h"
 
 extern Config config;
 
 ConfigUpdateStrategy::ConfigUpdateStrategy(FirmwareUpdateStrategy* fw)
-: fw_(fw)
-{}
+: fw_(fw) {}
 
-bool ConfigUpdateStrategy::checkForUpdate()
+bool ConfigUpdateStrategy::httpGetToString_(const String& url, String& out)
 {
-    Serial.println("[CFG] Checking manifest…");
-
-    String body;
     HTTPClient http;
-    if (!http.begin(config.ota_manifest_url)) {
-        Serial.println("[CFG] http.begin fallito");
+    http.setTimeout(5000);
+
+    if (!http.begin(url)) {
+        Serial.println("[CFG] http.begin() FAIL");
         return false;
     }
 
     int code = http.GET();
     if (code != HTTP_CODE_OK) {
-        Serial.printf("[CFG] GET manifest fallito: %d\n", code);
+        Serial.printf("[CFG] GET FAIL: %d\n", code);
         http.end();
         return false;
     }
 
-    body = http.getString();
+    out = http.getString();
     http.end();
+    return true;
+}
+
+int ConfigUpdateStrategy::compareVersions_(const String& a, const String& b)
+{
+    if (a.length() == 0 || b.length() == 0) return 0;
+    if (a == b) return 0;
+
+    // confronto semplice stringa → più sicuro delle combinazioni numeriche
+    return (a < b) ? -1 : 1;
+}
+
+bool ConfigUpdateStrategy::checkForUpdate()
+{
+    Serial.println("[CFG] Checking manifest…");
+
+    if (config.update_server.isEmpty()) {
+        Serial.println("[CFG] update_server NON configurato");
+        return false;
+    }
+
+    String url = config.update_server + "/manifest.json";
+
+    String body;
+    if (!httpGetToString_(url, body)) {
+        Serial.println("[CFG] Errore GET manifest");
+        return false;
+    }
 
     DynamicJsonDocument doc(4096);
     if (deserializeJson(doc, body)) {
-        Serial.println("[CFG] JSON manifest invalido");
+        Serial.println("[CFG] Manifest JSON invalido");
         return false;
     }
 
     if (!doc.containsKey("config")) {
-        Serial.println("[CFG] Nessuna sezione config");
+        Serial.println("[CFG] Sezione config mancante");
         return false;
     }
 
-    JsonObject c = doc["config"];
-    availableVersion_ = c["version"] | "";
-    downloadUrl_      = c["url"]     | "";
+    JsonObject cfg = doc["config"];
+
+    availableVersion_ = cfg["version"] | "";
+    downloadUrl_      = cfg["url"]     | "";
+    sha256_           = cfg["sha256"]  | "";
 
     if (availableVersion_.isEmpty() || downloadUrl_.isEmpty()) {
-        Serial.println("[CFG] Manifest incompleto");
+        Serial.println("[CFG] Manifest config incompleto");
         return false;
     }
 
-    hasUpdate_ = (availableVersion_ != config.config_version);
+    String cur = config.config_version;
 
-    if (hasUpdate_) {
-        Serial.printf("[CFG] Update disponibile config %s -> %s\n",
-                      config.config_version.c_str(), availableVersion_.c_str());
+    if (compareVersions_(cur, availableVersion_) < 0) {
+        Serial.printf("[CFG] Update disponibile: %s -> %s\n",
+            cur.c_str(), availableVersion_.c_str()
+        );
+        hasUpdate_ = true;
+    } else {
+        Serial.println("[CFG] Nessun update config");
+        hasUpdate_ = false;
     }
 
     return hasUpdate_;
@@ -66,44 +99,24 @@ bool ConfigUpdateStrategy::performUpdate()
 {
     if (!hasUpdate_) return false;
 
-    Serial.println("[CFG] Scarico nuovo config…");
+    Serial.println("[CFG] Scarico nuova config…");
 
-    HTTPClient http;
-    if (!http.begin(downloadUrl_)) {
-        Serial.println("[CFG] http.begin fallito");
+    String json;
+    if (!httpGetToString_(downloadUrl_, json)) {
+        Serial.println("[CFG] Errore download config");
         return false;
     }
 
-    int code = http.GET();
-    if (code != HTTP_CODE_OK) {
-        Serial.printf("[CFG] GET config.json fallito: %d\n", code);
-        http.end();
+    // Ricicliamo il metodo già usato da mqtt.cpp
+    extern bool applyConfigJson(const String&);
+    bool ok = applyConfigJson(json);
+
+    if (!ok) {
+        Serial.println("[CFG] applyConfigJson() FAIL");
         return false;
     }
 
-    String json = http.getString();
-    http.end();
+    Serial.println("[CFG] Config aggiornata OK");
 
-    if (json.length() < 5) {
-        Serial.println("[CFG] JSON troppo corto");
-        return false;
-    }
-
-    DynamicJsonDocument test(8192);
-    if (deserializeJson(test, json)) {
-        Serial.println("[CFG] JSON non valido");
-        return false;
-    }
-
-    Serial.println("[CFG] Applico configurazione + persist…");
-
-    if (!applyAndPersistConfigJson(json, false)) {
-        Serial.println("[CFG] errore applicazione config");
-        return false;
-    }
-
-    config.config_version = availableVersion_;
-
-    Serial.println("[CFG] FATTO (reboot richiesto)");
     return true;
 }
