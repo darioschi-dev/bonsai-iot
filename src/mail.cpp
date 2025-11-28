@@ -1,43 +1,66 @@
 #include "mail.h"
-#include <ESP_Mail_Client.h>
+#include <WiFiClientSecure.h>
+#include "mbedtls/base64.h"
 
-static SMTPSession smtp;
-static Session_Config mailSession;
-static SMTP_Message message;
+// ------------------------------------------------------------
+// Base64 helper
+// ------------------------------------------------------------
+String base64Encode(const String &data) {
+    size_t out_len = 0;
+    size_t in_len  = data.length();
+    unsigned char out[256];
 
-static void smtpCallback(SMTP_Status status) {
-  Serial.println(status.info());
+    mbedtls_base64_encode(out, sizeof(out), &out_len,
+                          (const unsigned char *)data.c_str(), in_len);
+
+    return String((char *)out);
 }
 
-void setup_mail(const String &htmlMsg,
-                const String &author_email,
-                const String &author_password,
-                const String &recipient_email)
+// ------------------------------------------------------------
+// SMTP SEND MAIL
+// ------------------------------------------------------------
+bool sendMail(const String& subject, const String& body)
 {
-  smtp.debug(1);
-  smtp.callback(smtpCallback);
+    WiFiClientSecure client;
+    client.setInsecure();
 
-  mailSession.server.host_name = "smtp.gmail.com";
-  mailSession.server.port = 465;
+    const char* smtp_server = "smtp.gmail.com";
+    const int smtp_port = 465;
+    const char* username = "xxx@gmail.com";
+    const char* password = "xxxx xxxx xxxx xxxx";
 
-  mailSession.login.email = author_email;
-  mailSession.login.password = author_password;
+    Serial.println("[MAIL] Connessione al server SMTP...");
 
-  message.sender.name = F("Igrometer");
-  message.sender.email = author_email;
-  message.subject = F("Soil moisture alert");
-  message.addRecipient("User", recipient_email);
+    if (!client.connect(smtp_server, smtp_port)) {
+        Serial.println("[MAIL] Connessione SMTP fallita");
+        return false;
+    }
 
-  message.html.content = htmlMsg.c_str();
-  message.html.charSet = "us-ascii";
-  message.html.transfer_encoding = Content_Transfer_Encoding::enc_7bit;
+    auto send = [&](const String& s) {
+        client.println(s);
+        delay(30);
+    };
 
-  if (!smtp.connect(&mailSession)) {
-    Serial.println("[MAIL] SMTP connection failed");
-    return;
-  }
+    send("EHLO esp32");
+    send("AUTH LOGIN");
 
-  if (!MailClient.sendMail(&smtp, &message)) {
-    Serial.printf("[MAIL] Send failed: %s\n", smtp.errorReason().c_str());
-  }
+    send(base64Encode(username));
+    send(base64Encode(password));
+
+    send("MAIL FROM:<" + String(username) + ">");
+    send("RCPT TO:<" + String(username) + ">");
+    send("DATA");
+
+    send("Subject: " + subject);
+    send("From: ESP32 <" + String(username) + ">");
+    send("To: <" + String(username) + ">");
+    send("");
+
+    send(body);
+
+    send(".");
+    send("QUIT");
+
+    Serial.println("[MAIL] Email inviata con successo!");
+    return true;
 }

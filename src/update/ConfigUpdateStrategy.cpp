@@ -1,26 +1,34 @@
 #include "ConfigUpdateStrategy.h"
+#include "FirmwareUpdateStrategy.h"
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <FS.h>
-#include <SPIFFS.h>
 #include "../config.h"
-#include "../config_api.h" 
+#include "../config_api.h"
 
 extern Config config;
 
-bool ConfigUpdateStrategy::checkForUpdate() {
+ConfigUpdateStrategy::ConfigUpdateStrategy(FirmwareUpdateStrategy* fw)
+: fw_(fw)
+{}
+
+bool ConfigUpdateStrategy::checkForUpdate()
+{
+    Serial.println("[CFG] Checking manifest…");
+
     String body;
     HTTPClient http;
     if (!http.begin(config.ota_manifest_url)) {
-        Serial.println("[CFG] impossibile inizializzare http");
+        Serial.println("[CFG] http.begin fallito");
         return false;
     }
+
     int code = http.GET();
     if (code != HTTP_CODE_OK) {
         Serial.printf("[CFG] GET manifest fallito: %d\n", code);
         http.end();
         return false;
     }
+
     body = http.getString();
     http.end();
 
@@ -30,57 +38,72 @@ bool ConfigUpdateStrategy::checkForUpdate() {
         return false;
     }
 
-    // Se il manifest ha una sezione config
-    if (doc.containsKey("config")) {
-        JsonObject cfg = doc["config"];
-        availableVersion_ = cfg["version"] | "";
-        downloadUrl_      = cfg["url"]     | "";
+    if (!doc.containsKey("config")) {
+        Serial.println("[CFG] Nessuna sezione config");
+        return false;
     }
 
+    JsonObject c = doc["config"];
+    availableVersion_ = c["version"] | "";
+    downloadUrl_      = c["url"]     | "";
+
     if (availableVersion_.isEmpty() || downloadUrl_.isEmpty()) {
-        Serial.println("[CFG] manifest config mancante/incompleto");
+        Serial.println("[CFG] Manifest incompleto");
         return false;
     }
 
     hasUpdate_ = (availableVersion_ != config.config_version);
+
     if (hasUpdate_) {
-        Serial.printf("🟡 Update disponibile: Config %s -> %s\n",
+        Serial.printf("[CFG] Update disponibile config %s -> %s\n",
                       config.config_version.c_str(), availableVersion_.c_str());
-    } else {
-        Serial.println("ℹ️ Nessun update config disponibile");
     }
 
     return hasUpdate_;
 }
 
-bool ConfigUpdateStrategy::performUpdate() {
+bool ConfigUpdateStrategy::performUpdate()
+{
     if (!hasUpdate_) return false;
+
+    Serial.println("[CFG] Scarico nuovo config…");
 
     HTTPClient http;
     if (!http.begin(downloadUrl_)) {
-        Serial.println("[CFG] begin() fallito per config.json");
+        Serial.println("[CFG] http.begin fallito");
         return false;
     }
+
     int code = http.GET();
     if (code != HTTP_CODE_OK) {
         Serial.printf("[CFG] GET config.json fallito: %d\n", code);
         http.end();
         return false;
     }
-    String newJson = http.getString();
+
+    String json = http.getString();
     http.end();
 
-    if (newJson.length() < 5) {
-        Serial.println("[CFG] config scaricato troppo corto");
+    if (json.length() < 5) {
+        Serial.println("[CFG] JSON troppo corto");
         return false;
     }
 
-    DynamicJsonDocument testDoc(8192);
-    if (deserializeJson(testDoc, newJson)) {
-        Serial.println("[CFG] JSON config non valido");
+    DynamicJsonDocument test(8192);
+    if (deserializeJson(test, json)) {
+        Serial.println("[CFG] JSON non valido");
         return false;
     }
 
-    applyAndPersistConfigJson(newJson); // salva su SPIFFS e riavvia
+    Serial.println("[CFG] Applico configurazione + persist…");
+
+    if (!applyAndPersistConfigJson(json, false)) {
+        Serial.println("[CFG] errore applicazione config");
+        return false;
+    }
+
+    config.config_version = availableVersion_;
+
+    Serial.println("[CFG] FATTO (reboot richiesto)");
     return true;
 }

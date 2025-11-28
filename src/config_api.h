@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <FS.h>
+
 #if USE_LITTLEFS
   #include <LittleFS.h>
   #define FS_IMPL LittleFS
@@ -19,11 +20,11 @@
 
 // ---- extern dal tuo progetto
 extern AsyncWebServer server;
-extern Config config;
 extern PubSubClient mqttClient;
-extern String deviceId; // definito in mqtt.cpp
+extern String deviceId;
+extern Config config;
 
-// Costante path file config
+// Path del file config
 extern const char* CONFIG_PATH;
 
 // Helpers FS
@@ -38,9 +39,8 @@ bool jsonToConfig(const String& json, Config& out);
 // Persistenza
 bool saveConfigStruct(const Config& c);
 bool loadConfig(Config& out);
-Config defaultConfig();
 
-// Confronto MQTT critico
+// Confronto parametri MQTT critici
 bool mqttCriticalChanged(const Config& a, const Config& b);
 
 // Applica + salva + ack + reboot

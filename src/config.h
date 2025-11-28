@@ -5,44 +5,43 @@
 
 struct Config
 {
+  // WiFi
+  String wifi_ssid;
+  String wifi_password;
 
-  // 📶 Configurazione Wi-Fi
-  String wifi_ssid;     // Nome della rete Wi-Fi
-  String wifi_password; // Password della rete Wi-Fi
+  // MQTT
+  String mqtt_username;
+  String mqtt_password;
+  String mqtt_broker;
+  int    mqtt_port;
 
-  // 🌐 Parametri MQTT
-  String mqtt_username; // Username per autenticazione MQTT
-  String mqtt_password; // Password per autenticazione MQTT
-  String mqtt_broker;   // Indirizzo del broker MQTT (es. HiveMQ)
-  int mqtt_port;        // Porta del broker MQTT (es. 8883 per MQTTs)
+  // Hardware
+  int led_pin;
+  int sensor_pin;
+  int pump_pin;
+  int relay_pin;
+  int battery_pin;
 
-  // 💡 Gestione hardware: LED, sensore, pompa, relè
-  int led_pin;     // Pin GPIO per il LED di stato
-  int sensor_pin;  // Pin GPIO collegato al sensore di umidità
-  int pump_pin;    // Pin GPIO per controllare la pompa (es. tramite transistor)
-  int relay_pin;   // Pin GPIO per controllare il relè (alimentazione pompa)
-  int battery_pin; // Pin ADC per misurare la tensione batteria (partitore resistivo)
+  // Logica irrigazione
+  int moisture_threshold;
+  int pump_duration;
+  int measurement_interval;
+  bool use_pump;
+  bool debug;
 
-  // 🌱 Parametri logici per irrigazione
-  int moisture_threshold;   // Soglia percentuale di umidità sotto la quale attivare la pompa
-  int pump_duration;        // Durata in secondi di attivazione della pompa
-  int measurement_interval; // Intervallo tra due misurazioni in millisecondi (es. 1800000 = 30 min)
-  bool use_pump;            // Abilita/disabilita il controllo automatico della pompa
-  bool debug;               // Abilita stampa su seriale per debug
+  // Sleep
+  int sleep_hours;
 
-  // 😴 Modalità sleep (deep sleep o delay prolungato)
-  int sleep_hours; // Ore di sleep tra una misurazione e l'altra (0 = disabilitato)
+  // Rete statica
+  bool   use_dhcp;
+  String ip_address;
+  String gateway;
+  String subnet;
 
-  // 🌐 Configurazione di rete statica (se DHCP disattivato)
-  String ip_address; // IP statico da assegnare
-  String gateway;    // Gateway di rete
-  String subnet;     // Subnet mask
-  bool use_dhcp;     // Se true, usa DHCP per ottenere IP
-
-  String ota_manifest_url; // URL del manifest OTA
-  String update_server;    // Base URL del server config
-  String config_version;   // Versione attuale della configurazione
+  // OTA / Update
+  String ota_manifest_url;   // URL manifest OTA (obbligatorio per OTA firmware+config)
+  String update_server;      // Base URL del server (per eventuale /firmware e /config)
+  String config_version;     // Versione locale del config salvato
 };
 
 bool loadConfig(Config &config);
-bool saveConfig(const Config &cfg);

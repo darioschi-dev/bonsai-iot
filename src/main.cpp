@@ -207,10 +207,16 @@ void setup() {
   });
 
   debugLog("UPDATER: run");
-  fwStrategy = new FirmwareUpdateStrategy();
-  updater.registerStrategy(fwStrategy);
-  updater.registerStrategy(new ConfigUpdateStrategy());
-  updater.runAll();
+  // -------------------------------------------------------
+  // OTA FIRMWARE + CONFIG (strategia unica coordinata)
+  // -------------------------------------------------------
+  fwStrategy = new FirmwareUpdateStrategy();        // UNA SOLA istanza condivisa
+  auto* cfgStrategy = new ConfigUpdateStrategy(fwStrategy);
+
+  updater.registerStrategy(fwStrategy);             // 1. firmware
+  updater.registerStrategy(cfgStrategy);            // 2. config
+
+  updater.runAll();                                 // esegue eventuali update
   debugLog("UPDATER: done");
 
   pinMode(config.led_pin, OUTPUT);
