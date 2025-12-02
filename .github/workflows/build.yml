@@ -63,7 +63,7 @@ jobs:
           # Default mode (for push)
           if [ -z "$MODE" ]; then MODE="combined"; fi
 
-          # IF user forced version → use it directly
+          # If manually forced version → use it directly
           if [ -n "$FORCE" ]; then
             VERSION="$FORCE"
             echo "VERSION=$VERSION" >> $GITHUB_ENV
@@ -71,40 +71,48 @@ jobs:
             exit 0
           fi
 
-          echo "🔍 Recupero ultimo tag SEMVER valido…"
+          echo "🔍 Ricerca ultimo tag (semver o semver+timestamp)…"
 
-          # Pick ONLY semver tags vX.Y.Z (strict!)
-          TAG=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          # Match both:
+          #   v1.4.11
+          #   v1.4.11+202511282155
+          RAW=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n1)
 
-          if [ -z "$TAG" ]; then
-            echo "⚠️ Nessun tag semver trovato. Uso v0.0.0"
-            TAG="v0.0.0"
+          if [ -z "$RAW" ]; then
+            echo "⚠️ Nessun tag trovato. Uso v0.0.0"
+            RAW="v0.0.0"
           fi
 
-          echo "➡️ Ultimo tag valido: $TAG"
+          echo "➡️ Ultimo tag trovato: $RAW"
 
+          # Extract clean semver by removing "+timestamp"
+          TAG=$(echo "$RAW" | sed 's/+.*//')
+
+          echo "➡️ Semver base estratto: $TAG"
+
+          # Remove leading v
           BASE="${TAG#v}"
 
-          # Extract MAJOR.MINOR.PATCH from clean semver
+          # Extract MAJOR.MINOR.PATCH
           IFS='.' read -r MA MI PA <<< "$BASE"
 
-          # Compact timestamp
+          # Timestamp
           TS=$(date +%Y%m%d%H%M)
 
           case "$MODE" in
             semver)
-              PA=$((PA+1))
+              PA=$((PA + 1))
               VERSION="v${MA}.${MI}.${PA}"
               ;;
             timestamp)
               VERSION="$TS"
               ;;
             combined)
-              PA=$((PA+1))
+              PA=$((PA + 1))
               VERSION="v${MA}.${MI}.${PA}+${TS}"
               ;;
             *)
-              PA=$((PA+1))
+              PA=$((PA + 1))
               VERSION="v${MA}.${MI}.${PA}+${TS}"
               ;;
           esac
@@ -121,10 +129,41 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ env.VERSION }}
         run: |
+          set -e
+
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
+
+          echo "🔍 Verifico se il tag ${VERSION} esiste già…"
+
+          if git rev-parse "${VERSION}" >/dev/null 2>&1; then
+            echo "❌ ERRORE: Il tag ${VERSION} esiste già! Interrompo la pipeline."
+            exit 1
+          fi
+
+          echo "🏷  Creo nuovo tag: ${VERSION}"
           git tag "${VERSION}"
+
+          echo "🚀 Pushing tag…"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} "${VERSION}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: "Firmware ${{ env.VERSION }}"
+          draft: false
+          prerelease: false
+          files: |
+            .pio/build/esp32-prod/firmware.bin
+            version.txt
+          body: |
+            Firmware ESP32 costruito automaticamente.
+            Commit: ${{ github.sha }}
+            Versione: ${{ env.VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Build firmware (esp32-prod) with VERSION override
         env:
