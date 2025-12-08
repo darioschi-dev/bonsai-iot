@@ -3,68 +3,296 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="5;url=https://bonsai-mqtt-dashboard.onrender.com/">
-  <title>Bonsai IoT – Progetto di Monitoraggio</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous">
+  <title>Bonsai IoT Premium</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
+    :root {
+      --primary: #10b981; /* Emerald 500 */
+      --primary-dark: #059669;
+      --bg: #0f172a; /* Slate 900 */
+      --card-bg: #1e293b; /* Slate 800 */
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+    
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f0f4f1;
-      color: #333;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      width: 100%;
+      padding: 1.5rem;
+      background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(10px);
       text-align: center;
-      padding: 2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
-    h1 {
-      color: #2c7a4d;
-      margin-bottom: 0.5rem;
-    }
-    p {
+
+    h1 { margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+    h2 { margin: 0 0 1rem 0; font-size: 1.2rem; font-weight: 600; }
+    p { color: var(--text-muted); }
+
+    .container {
+      width: 100%;
       max-width: 600px;
-      margin: 1rem auto;
+      padding: 1.5rem;
+      flex: 1;
     }
-    .badges {
-      margin: 1.5rem auto;
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: transform 0.2s;
     }
-    .badges a {
-      margin: 0 1rem;
-      display: inline-block;
+    
+    .card:hover { transform: translateY(-2px); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
     }
-    .redirect {
-      margin-top: 2rem;
-      font-style: italic;
+
+    .metric {
+      text-align: center;
     }
+    .metric-value {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+    .metric-label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
     .btn {
-      background: #28a745;
+      width: 100%;
+      padding: 1rem;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(255,255,255,0.1);
+    }
+    .status-on { background: rgba(16, 185, 129, 0.2); color: var(--primary); }
+    .status-off { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+    .form-group { margin-bottom: 1rem; text-align: left; }
+    label { display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem; }
+    input[type="number"], input[type="text"] {
+      width: 100%;
+      padding: 0.8rem;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #0f172a;
       color: white;
-      padding: 0.6rem 1.4rem;
-      border-radius: 6px;
-      text-decoration: none;
-      font-weight: bold;
+      box-sizing: border-box; 
     }
-    .btn:hover {
-      background: #23913e;
+    
+    footer {
+      padding: 2rem;
+      text-align: center;
+      color: #475569;
+      font-size: 0.8rem;
     }
+
+    /* Loader */
+    .loader {
+      border: 3px solid rgba(255,255,255,0.1);
+      border-radius: 50%;
+      border-top: 3px solid var(--primary);
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
   </style>
 </head>
 <body>
-  <h1><i class="fas fa-seedling"></i> Bonsai IoT</h1>
-  <p>
-    Dashboard per il monitoraggio intelligente dell’umidità del terreno, con gestione remota dell’irrigazione tramite ESP32 e MQTT.
-    Progetto open source realizzato da <strong>@darioschi-dev</strong>.
-  </p>
 
-  <div class="badges">
-    <a href="https://github.com/darioschi-dev/bonsai-iot" target="_blank">
-      <img src="https://img.shields.io/github/stars/darioschi-dev/bonsai-iot?style=social" alt="GitHub">
-    </a>
-    <a href="https://bonsai-mqtt-dashboard.onrender.com/" target="_blank" class="btn">
-      Vai alla Dashboard
-    </a>
+  <header>
+    <h1><i class="fas fa-leaf"></i> Bonsai IoT</h1>
+  </header>
+
+  <div class="container">
+    
+    <!-- Status Card -->
+    <div class="card">
+      <div class="grid">
+        <div class="metric">
+          <div class="metric-value" id="soil-val">--%</div>
+          <div class="metric-label">Umidità Suolo</div>
+        </div>
+        <div class="metric">
+          <!-- Raw Value hidden or small -->
+          <div class="metric-value" style="color: var(--text-muted); font-size: 1.5rem;" id="raw-val">--</div>
+          <div class="metric-label">Valore Raw</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pump Control -->
+    <div class="card">
+      <h2><i class="fas fa-faucet"></i> Controllo Pompa</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <span class="status-badge" id="pump-status">SCONOSCIUTO</span>
+        <div class="loader" id="pump-loader"></div>
+      </div>
+      <div class="grid">
+        <button class="btn btn-primary" onclick="controlPump('on')">
+          <i class="fas fa-play"></i> ATTIVA
+        </button>
+        <button class="btn btn-danger" onclick="controlPump('off')">
+          <i class="fas fa-stop"></i> SPEGNI
+        </button>
+      </div>
+    </div>
+
+    <!-- Settings (Deep Sleep & More) -->
+    <div class="card">
+      <h2><i class="fas fa-cog"></i> Impostazioni</h2>
+      <div class="form-group">
+        <label>Webserver Timeout (sec)</label>
+        <input type="number" id="timeout-cfg" placeholder="60">
+      </div>
+      <div class="form-group">
+        <label>Ore Deep Sleep</label>
+        <input type="number" id="sleep-cfg" placeholder="4">
+      </div>
+      <button class="btn" style="background: #3b82f6; color: white;" onclick="saveConfig()">
+        <i class="fas fa-save"></i> Salva Configurazione
+      </button>
+    </div>
+
   </div>
 
-  <p class="redirect">
-    Verrai reindirizzato automaticamente alla dashboard tra qualche secondo…<br>
-    Se non succede, <a href="https://bonsai-mqtt-dashboard.onrender.com/">clicca qui</a>.
-  </p>
+  <footer>
+    <p>Firmware: <span id="fw-ver">...</span> | ID: <span id="device-id">...</span></p>
+    <p>&copy; 2025 Bonsai IoT</p>
+  </footer>
+
+  <script>
+    // Config API handling
+    async function loadData() {
+      try {
+        // Fetch Sensor Data
+        const res = await fetch('/api/soil');
+        const data = await res.json();
+        
+        document.getElementById('soil-val').innerText = data.percentage + "%";
+        document.getElementById('raw-val').innerText = data.soilValue;
+        updatePumpStatus(data.pumpStatus);
+
+        // Fetch Config for form
+        const cfgRes = await fetch('/api/config');
+        const cfg = await cfgRes.json();
+        
+        document.getElementById('timeout-cfg').value = cfg.webserver_timeout || 60;
+        document.getElementById('sleep-cfg').value = cfg.sleep_hours || 4;
+        
+        if(cfg.config_version) document.getElementById('fw-ver').innerText = cfg.config_version; // or fw version if exposed
+
+      } catch (e) {
+        console.error("Error loading data", e);
+      }
+    }
+
+    function updatePumpStatus(status) {
+      const el = document.getElementById('pump-status');
+      if (status === 'on') {
+        el.className = 'status-badge status-on';
+        el.innerText = 'ACCESA';
+      } else {
+        el.className = 'status-badge status-off';
+        el.innerText = 'SPENTA';
+      }
+    }
+
+    async function controlPump(action) {
+      document.getElementById('pump-loader').style.display = 'block';
+      try {
+        const res = await fetch(`/api/pump/${action}`, { method: 'POST' });
+        const data = await res.json();
+        updatePumpStatus(data.status);
+      } catch(e) {
+        alert('Errore comando pompa');
+      } finally {
+        document.getElementById('pump-loader').style.display = 'none';
+      }
+    }
+
+    async function saveConfig() {
+      const timeout = document.getElementById('timeout-cfg').value;
+      const sleep = document.getElementById('sleep-cfg').value;
+      
+      // We need to fetch current config first to merge, or backend handles merge?
+      // The C++ code replaces the whole config if we send a partial one usually, relying on json deserialization merging?
+      // No, `jsonToConfig` updates 'out' struct. If we send partial json, only those fields update!
+      // Great.
+      
+      const payload = {
+        webserver_timeout: parseInt(timeout),
+        sleep_hours: parseInt(sleep),
+        reboot: 0 // Do not reboot immediately, allow user to continue
+      };
+
+      try {
+        const res = await fetch('/api/config?reboot=0', { 
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        if(res.ok) alert('Salvato! Al prossimo riavvio sarà effettivo.');
+        else alert('Errore salvataggio');
+      } catch(e) {
+        alert('Errore rete');
+      }
+    }
+
+    // Auto load
+    loadData();
+    setInterval(loadData, 5000); // Polling every 5s
+
+  </script>
 </body>
 </html>

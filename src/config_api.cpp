@@ -3,6 +3,7 @@
 #include <FS.h>
 #include <SPIFFS.h>
 #include "config_api.h"
+#include "config_validator.h"
 #include "mqtt.h"   // publishMqtt()
 
 const char* CONFIG_PATH = "/config.json";
@@ -26,7 +27,7 @@ bool writeFileAtomic(const char* path, const String& data)
 {
     String tmp = String(path) + ".tmp";
 
-    File f = FS_IMPL.open(tmp, "w");
+    auto f = FS_IMPL.open(tmp, "w");
     if (!f) return false;
 
     size_t w = f.print(data);
@@ -44,7 +45,7 @@ bool writeFileAtomic(const char* path, const String& data)
 
 bool readFileToString(const char* path, String& out)
 {
-    File f = FS_IMPL.open(path, "r");
+    auto f = FS_IMPL.open(path, "r");
     if (!f) return false;
 
     out = f.readString();
@@ -78,6 +79,8 @@ String configToJson(const Config& c)
 
     d["use_pump"]  = c.use_pump;
     d["debug"]     = c.debug;
+    d["enable_webserver"] = c.enable_webserver;
+    d["webserver_timeout"] = c.webserver_timeout;
 
     d["sleep_hours"] = c.sleep_hours;
 
@@ -89,6 +92,7 @@ String configToJson(const Config& c)
     d["ota_manifest_url"] = c.ota_manifest_url;
     d["update_server"]    = c.update_server;
     d["config_version"]   = c.config_version;
+    d["timezone"]         = c.timezone;
 
     String out;
     serializeJson(d, out);
@@ -119,6 +123,8 @@ bool jsonToConfig(const String& json, Config& out)
 
     if (d.containsKey("use_pump")) out.use_pump = d["use_pump"].as<bool>();
     if (d.containsKey("debug"))    out.debug    = d["debug"].as<bool>();
+    if (d.containsKey("enable_webserver")) out.enable_webserver = d["enable_webserver"].as<bool>();
+    if (d.containsKey("webserver_timeout")) out.webserver_timeout = d["webserver_timeout"].as<int>();
 
     if (d.containsKey("sleep_hours")) out.sleep_hours = d["sleep_hours"].as<int>();
 
@@ -130,6 +136,7 @@ bool jsonToConfig(const String& json, Config& out)
     if (d.containsKey("ota_manifest_url")) out.ota_manifest_url = d["ota_manifest_url"].as<String>();
     if (d.containsKey("update_server"))    out.update_server    = d["update_server"].as<String>();
     if (d.containsKey("config_version"))   out.config_version   = d["config_version"].as<String>();
+    if (d.containsKey("timezone"))        out.timezone         = d["timezone"].as<String>();
 
     return true;
 }
@@ -153,10 +160,36 @@ bool loadConfig(Config& out)
     String json;
     if (!readFileToString(CONFIG_PATH, json)) {
         Serial.println("[CONFIG] Nessun config.json, uso default");
+        out = getDefaultConfig();
+        return false;  // Indica che non c'era un config, ma abbiamo un default
+    }
+
+    if (!jsonToConfig(json, out)) {
+        Serial.println("[CONFIG] Errore parsing JSON, uso default");
+        out = getDefaultConfig();
         return false;
     }
 
-    return jsonToConfig(json, out);
+    // Validazione configurazione
+    if (!validateConfig(out)) {
+        Serial.println("[CONFIG] Config non valido, correggo con default e salvo");
+        Config def = getDefaultConfig();
+        // Mantieni valori critici se validi (WiFi, MQTT)
+        if (out.wifi_ssid.length() > 0) def.wifi_ssid = out.wifi_ssid;
+        if (out.wifi_password.length() > 0) def.wifi_password = out.wifi_password;
+        if (out.mqtt_broker.length() > 0) def.mqtt_broker = out.mqtt_broker;
+        if (out.mqtt_username.length() > 0) def.mqtt_username = out.mqtt_username;
+        if (out.mqtt_password.length() > 0) def.mqtt_password = out.mqtt_password;
+        if (out.mqtt_port > 0 && out.mqtt_port <= 65535) def.mqtt_port = out.mqtt_port;
+        
+        out = def;
+        // Salva config corretto
+        saveConfigStruct(out);
+        Serial.println("[CONFIG] Config corretto salvato");
+        return true;  // Config corretto e salvato
+    }
+
+    return true;  // Config valido
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,6 @@
 #include "mqtt.h"
+#include "pump_controller.h"
+#include "trigger_firmware_check.h"
 
 unsigned long lastMqttPublish = 0;
 const unsigned long mqttInterval = 15000; // 15s
@@ -9,6 +11,7 @@ String deviceId = "";
 extern Config config;
 extern int soilValue;
 extern int soilPercent;
+extern PumpController* pumpController;
 
 bool mqttReady = false;
 
@@ -55,6 +58,7 @@ void publishConfigSnapshot()
   doc["measurement_interval"] = config.measurement_interval;
   doc["use_pump"]             = config.use_pump;
   doc["debug"]                = config.debug;
+  doc["enable_webserver"]     = config.enable_webserver;
   doc["sleep_hours"]          = config.sleep_hours;
   doc["use_dhcp"]             = config.use_dhcp;
   doc["ip_address"]           = config.ip_address;
@@ -63,6 +67,7 @@ void publishConfigSnapshot()
   doc["ota_manifest_url"]     = config.ota_manifest_url;
   doc["update_server"]        = config.update_server;
   doc["config_version"]       = config.config_version;
+  doc["timezone"]              = config.timezone;
   doc["device_id"]            = deviceId;
 
   String out;
@@ -141,6 +146,8 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   // ========= PUMP CONTROL ===========
   if (t == ("bonsai/" + deviceId + "/command/pump"))
   {
+    if (!pumpController) return;
+    
     bool on = (msgLower == "on");
     bool off = (msgLower == "off");
     if (!on && !off) return;
@@ -149,7 +156,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 
     if (on)
     {
-      digitalWrite(config.pump_pin, LOW);
+      pumpController->turnOn();
       publishMqtt(base + "pump", "on", true);
 
       unsigned long long ms = epochMs();
@@ -162,7 +169,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     }
     else
     {
-      digitalWrite(config.pump_pin, HIGH);
+      pumpController->turnOff();
       publishMqtt(base + "pump", "off", true);
     }
     return;
@@ -180,7 +187,6 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   if (t == ("bonsai/" + deviceId + "/command/ota") ||
       t == ("bonsai/ota/force/" + deviceId))
   {
-    extern void triggerFirmwareCheck();
     triggerFirmwareCheck();
     return;
   }
@@ -274,9 +280,11 @@ void loopMqtt()
     publishMqtt(base + "temp", "0", false);
     publishMqtt(base + "battery", String(analogRead(config.battery_pin)), false);
 
-    publishMqtt(base + "pump",
-      digitalRead(config.pump_pin) == LOW ? "on" : "off", true
-    );
+    if (pumpController) {
+      publishMqtt(base + "pump",
+        pumpController->getState() ? "on" : "off", true
+      );
+    }
   }
 }
 

@@ -11,6 +11,9 @@
 #include "config.h"
 #include "config_api.h"
 
+// Forward declaration
+void triggerFirmwareCheck();
+
 // =====================
 // Variabili esterne
 // =====================

@@ -1,4 +1,4 @@
-#include "MirrorSerial.h"
+#include "mirror_serial.h"
 
 MirrorSerialClass MirrorSerial;
 
@@ -10,3 +10,4 @@ size_t MirrorSerialClass::write(uint8_t b) {
     Serial.write(b);   // passa anche al Serial hardware
     return 1;
 }
+

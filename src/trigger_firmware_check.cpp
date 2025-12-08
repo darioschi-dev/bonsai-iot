@@ -1,3 +1,4 @@
+#include "trigger_firmware_check.h"
 #include "update/FirmwareUpdateStrategy.h"
 #include "config.h"
 #include <Arduino.h>
@@ -84,3 +85,4 @@ void triggerFirmwareCheck() {
     resetFailAndBackoff();
   }
 }
+

@@ -1,4 +1,4 @@
-#include "MirrorSerial.h" 
+#include "mirror_serial.h" 
 #include <Arduino.h>
 #include <Preferences.h>
 #include <WiFi.h>
@@ -16,7 +16,8 @@
 #include "mqtt.h"
 #include "config_api.h"
 #include "logger.h"
-#include "TelnetLogger.h"
+#include "telnet_logger.h"
+#include "pump_controller.h"
 
 #include "update/UpdateManager.h"
 #include "update/FirmwareUpdateStrategy.h"
@@ -25,6 +26,7 @@ extern "C" {
   #include "esp_ota_ops.h"
   #include "esp_task_wdt.h"
   #include "esp_system.h"
+  #include "esp_sleep.h"
 }
 
 // ----------------- Variabili globali -----------------
@@ -38,7 +40,11 @@ extern String deviceId;
 static UpdateManager updater;
 static FirmwareUpdateStrategy *fwStrategy = nullptr;
 
+PumpController* pumpController = nullptr;
+
 RTC_DATA_ATTR int bootCount = 0;
+RTC_DATA_ATTR bool pumpStateAfterWakeup = false;
+RTC_DATA_ATTR unsigned long lastWakeupMs = 0;
 Preferences prefs;
 
 int soilValue = 0;
@@ -68,6 +74,46 @@ static String currentAppVersion() {
   if (app && app->version[0]) return String(app->version);
   return "unknown";
 #endif
+}
+
+// Convert IANA timezone names to POSIX TZ format
+static String ianaToPosixTz(const String& tzName) {
+  String tz = tzName;
+  tz.toLowerCase();
+  tz.trim();
+  
+  // Common IANA timezone mappings to POSIX TZ format
+  if (tz == "europe/rome" || tz == "europe/berlin" || tz == "europe/paris" || 
+      tz == "europe/madrid" || tz == "europe/amsterdam" || tz == "europe/brussels") {
+    return "CET-1CEST,M3.5.0/2,M10.5.0/3";  // Central European Time
+  }
+  if (tz == "europe/london" || tz == "europe/dublin") {
+    return "GMT0BST,M3.5.0/1,M10.5.0/2";  // British Time
+  }
+  if (tz == "europe/moscow") {
+    return "MSK-3";  // Moscow Standard Time (no DST)
+  }
+  if (tz == "america/new_york" || tz == "america/toronto") {
+    return "EST5EDT,M3.2.0,M11.1.0";  // Eastern Time
+  }
+  if (tz == "america/chicago" || tz == "america/mexico_city") {
+    return "CST6CDT,M3.2.0,M11.1.0";  // Central Time
+  }
+  if (tz == "america/los_angeles" || tz == "america/vancouver") {
+    return "PST8PDT,M3.2.0,M11.1.0";  // Pacific Time
+  }
+  if (tz == "asia/tokyo") {
+    return "JST-9";  // Japan Standard Time (no DST)
+  }
+  if (tz == "asia/shanghai" || tz == "asia/hong_kong") {
+    return "CST-8";  // China Standard Time (no DST)
+  }
+  if (tz == "utc" || tz == "gmt") {
+    return "UTC0";  // Coordinated Universal Time
+  }
+  
+  // If not recognized, assume it's already in POSIX format
+  return tzName;
 }
 
 // ----------------- OTA da MQTT -----------------
@@ -115,7 +161,23 @@ void setup_wifi() {
 
   Logger::begin(SYSLOG_HOST, SYSLOG_PORT, SYSLOG_HOSTNAME, SYSLOG_APP, LOG_INFO);
 
-  setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
+  // Use timezone from config, fallback to Europe/Rome if not set or empty
+  String tz = config.timezone;
+  tz.trim();  // Remove leading/trailing whitespace
+  if (tz.length() == 0) {
+    tz = "Europe/Rome";  // Default: Italy timezone
+    debugLog("TIMEZONE: using fallback " + tz);
+  }
+  
+  // Convert IANA timezone names (e.g., "Europe/Rome") to POSIX format
+  String posixTz = ianaToPosixTz(tz);
+  if (posixTz != tz) {
+    debugLog("TIMEZONE: converted " + tz + " -> " + posixTz);
+  } else {
+    debugLog("TIMEZONE: using " + tz + " (POSIX format)");
+  }
+  
+  setenv("TZ", posixTz.c_str(), 1);
   tzset();
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 
@@ -135,8 +197,9 @@ int readSoil() {
 
 // ----------------- Pompa -----------------
 void turnOnPump() {
+  if (!pumpController) return;
   debugLog("PUMP: ON");
-  digitalWrite(config.pump_pin, LOW);
+  pumpController->turnOn();
 
   publishMqtt("bonsai/" + deviceId + "/status/pump", "on", true);
 
@@ -149,14 +212,21 @@ void turnOnPump() {
 }
 
 void turnOffPump() {
+  if (!pumpController) return;
   debugLog("PUMP: OFF");
-  digitalWrite(config.pump_pin, HIGH);
+  pumpController->turnOff();
   publishMqtt("bonsai/" + deviceId + "/status/pump", "off", true);
 }
 
 // =======================================================
 // ======================== SETUP ========================
 // =======================================================
+
+// =======================================================
+// ======================== SETUP ========================
+// =======================================================
+
+unsigned long setupDoneTime = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -179,11 +249,23 @@ void setup() {
 
   if (!loadConfig(config)) {
     debugLog("CONFIG: load FAIL");
-    return;
+    // Continue anyway with defaults?
+  } else {
+    debugLog("CONFIG: loaded");
   }
-  debugLog("CONFIG: loaded");
 
   setup_wifi();
+  
+  // Check if wakeup from deep sleep and restore state
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER) {
+    debugLog("WAKEUP: from deep sleep");
+    lastWakeupMs = millis();
+  } else if (wakeup_reason == ESP_SLEEP_WAKEUP_UNDEFINED) {
+    // First boot or reset, not from deep sleep
+    debugLog("BOOT: first boot or reset");
+    pumpStateAfterWakeup = false;  // Reset to OFF on first boot
+  }
   
   setupTelnetLogger("bonsai-esp32", 23);
 
@@ -206,22 +288,34 @@ void setup() {
   });
 
   debugLog("UPDATER: run");
-  // -------------------------------------------------------
-  // OTA FIRMWARE + CONFIG (strategia unica coordinata)
-  // -------------------------------------------------------
-  fwStrategy = new FirmwareUpdateStrategy();        // UNA SOLA istanza condivisa
-  updater.registerStrategy(fwStrategy);             // 1. firmware
-  updater.runAll();                                 // esegue eventuali update
+  fwStrategy = new FirmwareUpdateStrategy();
+  updater.registerStrategy(fwStrategy);
+  updater.runAll();
   debugLog("UPDATER: done");
 
   pinMode(config.led_pin, OUTPUT);
   pinMode(config.sensor_pin, INPUT);
-  pinMode(config.pump_pin, OUTPUT);
-  digitalWrite(config.pump_pin, HIGH);
+  
+  // Initialize pump controller
+  pumpController = new PumpController(config.pump_pin);
+  pumpController->begin();
+  
+  // Restore pump state if wakeup from deep sleep
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER && pumpController) {
+    debugLog("PUMP: restoring state " + String(pumpStateAfterWakeup ? "ON" : "OFF"));
+    pumpController->setState(pumpStateAfterWakeup);
+  }
 
   ArduinoOTA.begin();
-  setup_webserver(config.pump_pin);
-  debugLog("WEBSERVER: started");
+  
+  // Setup webserver solo se abilitato nel config
+  if (config.enable_webserver) {
+    setup_webserver(config.pump_pin);
+    setupConfigApi();  // API config via HTTP
+    debugLog("WEBSERVER: started");
+  } else {
+    debugLog("WEBSERVER: disabled (enable_webserver=false)");
+  }
 
   int perc = readSoil();
   if (perc < config.moisture_threshold) {
@@ -235,14 +329,8 @@ void setup() {
     debugLog("SOIL: ok");
   }
 
-  if (!config.debug) {
-    debugLog("SLEEP: start");
-    esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
-    delay(200);
-    esp_deep_sleep_start();
-  }
-
-  debugLog("SETUP: complete");
+  setupDoneTime = millis();
+  debugLog("SETUP: complete. Loop timeout: " + String(config.webserver_timeout));
 }
 
 // =======================================================
@@ -251,8 +339,37 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
-  if (!mqttReady) return;
-  loopMqtt();
+  if (mqttReady) {
+    loopMqtt();
+  }
   loopTelnetLogger();
   esp_task_wdt_reset();
+
+  // Deep sleep management: garantisce almeno un ciclo completo di loop() prima di sleep
+  if (!config.debug) {
+    unsigned long elapsed = millis() - setupDoneTime;
+    unsigned long timeoutMs = 0;
+    
+    if (config.webserver_timeout > 0) {
+      // Timeout esplicito: usa il valore configurato
+      timeoutMs = (unsigned long)config.webserver_timeout * 1000;
+    } else {
+      // Timeout 0 o non impostato: usa minimo 2 secondi per garantire almeno un ciclo
+      timeoutMs = 2000;  // Minimo 2 secondi per inizializzazione servizi
+    }
+    
+    if (elapsed >= timeoutMs) {
+      debugLog("SLEEP: timeout reached (" + String(elapsed) + "ms)");
+      
+      // Save pump state before sleep
+      if (pumpController) {
+        pumpStateAfterWakeup = pumpController->getState();
+        debugLog("PUMP: saving state " + String(pumpStateAfterWakeup ? "ON" : "OFF") + " before sleep");
+      }
+      
+      esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
+      delay(100);
+      esp_deep_sleep_start();
+    }
+  }
 }

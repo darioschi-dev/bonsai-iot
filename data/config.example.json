@@ -18,10 +18,13 @@
   "measurement_interval": 1800000,
   "debug": false,
   "use_pump": true,
+  "enable_webserver": false,
   "sleep_hours": 0,
+  "webserver_timeout": 60,
   "use_dhcp": true,
   "ip_address": "192.168.1.150",
   "gateway": "192.168.1.1",
   "subnet": "255.255.255.0",
-  "ota_manifest_url": "http://server-ip:3000/firmware/manifest.json"
+  "ota_manifest_url": "http://server-ip:3000/firmware/manifest.json",
+  "timezone": "Europe/Rome"
 }

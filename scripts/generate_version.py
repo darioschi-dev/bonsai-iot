@@ -38,7 +38,15 @@ else:
     version = bump_patch(latest_tag) if use_next_patch else latest_tag
 
 commit = safe_git_command(["git", "rev-parse", "--short", "HEAD"], "unknown")
-build_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+# Build time with timezone info
+try:
+    # Try to get local timezone-aware datetime
+    now = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    tz_name = now.strftime("%Z") or "UTC"
+    build_time = now.strftime("%Y-%m-%d %H:%M:%S") + " " + tz_name
+except:
+    # Fallback to simple format if timezone not available
+    build_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 header_path = Path("include") / "version_auto.h"
 header_path.parent.mkdir(exist_ok=True)

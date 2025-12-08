@@ -1,4 +1,4 @@
-#include "TelnetLogger.h"
+#include "telnet_logger.h"
 #include <WiFi.h>
 
 static ESPTelnet telnet;
@@ -38,3 +38,4 @@ void loopTelnetLogger()
 {
     telnet.loop();
 }
+

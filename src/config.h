@@ -2,6 +2,8 @@
 #include <ArduinoJson.h>
 #include <FS.h>
 #include <SPIFFS.h>
+#define PUMP_ON LOW
+#define PUMP_OFF HIGH
 
 struct Config
 {
@@ -28,6 +30,8 @@ struct Config
   int measurement_interval;
   bool use_pump;
   bool debug;
+  bool enable_webserver;  // Abilita webserver locale (consuma risorse)
+  int webserver_timeout; // Seconds to wait before deep sleep
 
   // Sleep
   int sleep_hours;
@@ -42,6 +46,9 @@ struct Config
   String ota_manifest_url;   // URL manifest OTA (obbligatorio per OTA firmware+config)
   String update_server;      // Base URL del server (per eventuale /firmware e /config)
   String config_version;     // Versione locale del config salvato
+  
+  // Timezone
+  String timezone;           // Timezone string (IANA: "Europe/Rome", "Europe/Berlin", "UTC" o POSIX: "CET-1CEST,M3.5.0/2,M10.5.0/3")
 };
 
 bool loadConfig(Config &config);
