@@ -296,8 +296,8 @@ void setup() {
   pinMode(config.led_pin, OUTPUT);
   pinMode(config.sensor_pin, INPUT);
   
-  // Initialize pump controller
-  pumpController = new PumpController(config.pump_pin);
+  // Initialize pump controller with 60-second max runtime failsafe
+  pumpController = new PumpController(config.pump_pin, 60000);
   pumpController->begin();
   
   // Restore pump state if wakeup from deep sleep
@@ -339,6 +339,19 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
+  
+  // Monitor pump runtime for safety failsafe
+  if (pumpController) {
+    pumpController->loop();
+    
+    // Publish emergency alert if pump exceeded max runtime
+    if (pumpController->isEmergencyStop() && mqttReady) {
+      String alertTopic = "bonsai/" + deviceId + "/alert/pump";
+      mqttClient.publish(alertTopic.c_str(), "EMERGENCY_STOP", true);
+      debugLog("[PUMP] Published emergency stop alert");
+    }
+  }
+  
   if (mqttReady) {
     loopMqtt();
   }
