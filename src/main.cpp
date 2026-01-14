@@ -187,11 +187,30 @@ void setup_wifi() {
 
 // ----------------- Sensore -----------------
 int readSoil() {
-  int raw = analogRead(config.sensor_pin);
+  // Sample 5 times with 50ms delay to reduce noise
+  int samples[5];
+  for (int i = 0; i < 5; i++) {
+    samples[i] = analogRead(config.sensor_pin);
+    delay(50);
+  }
+  
+  // Sort samples for outlier rejection
+  for (int i = 0; i < 4; i++) {
+    for (int j = i + 1; j < 5; j++) {
+      if (samples[i] > samples[j]) {
+        int temp = samples[i];
+        samples[i] = samples[j];
+        samples[j] = temp;
+      }
+    }
+  }
+  
+  // Use median-of-3 (discard min and max outliers)
+  int raw = (samples[1] + samples[2] + samples[3]) / 3;
   int perc = map(raw, 4095, 0, 0, 100);
   soilValue = raw;
   soilPercent = perc;
-  debugLog("SOIL=" + String(perc));
+  debugLog("SOIL=" + String(perc) + "% (avg of 5 samples)");
   return perc;
 }
 
