@@ -65,7 +65,7 @@ Il sistema è composto da due moduli principali.
     - il sistema non introduca nuovi blocchi o loop
     - i passaggi di verifica siano riproducibili
 16. Per ogni commit o utilizzo di gh,
-    racchiudi sempre il messaggio tra apici singoli ('...') per evitare problemi di parsing.
+    racchiudi sempre il messaggio tra apici singoli ('...') per evitare problemi di parsing della shell. Evitare $, backtick (`), doppi apici ("). Preferire single-line per commit su shell complesse. Usare redirezione di file se necessario per multi-linea.
 17. Mantieni sempre allineamento con il file .github/copilot-instructions.md se presente.
 
 ---
