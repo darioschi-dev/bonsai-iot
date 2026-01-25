@@ -24,7 +24,7 @@ Il sistema è composto da due moduli principali.
 - WebSocket MQTT: porta 9001
 - API HTTP: porta 8081
 
-### 2) bonsai-iot (ESP32)
+### 2) bonsai-firmware (ESP32)
 - Firmware PlatformIO (src/main.cpp)
 - Web UI su SPIFFS (data/)
 - Configurazione: data/config.json (generata da scripts/setup_config.py)

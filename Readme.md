@@ -19,8 +19,8 @@ Sistema basato su **ESP32** per il monitoraggio dell’umidità del suolo e il c
 ### 1. Clona il progetto
 
 ```bash
-git clone https://github.com/darioschi-dev/bonsai-iot.git
-cd bonsai-iot
+git clone https://github.com/darioschi-dev/bonsai-firmware.git
+cd bonsai-firmware
 ```
 
 ### 2. Genera il file `config.json`

@@ -1,4 +1,4 @@
-# Makefile per bonsai-iot (ESP32)
+# Makefile per bonsai-firmware (ESP32)
 # Usage esempi:
 #   make build                 # build standard
 #   make release               # build con bump patch + tag (USE_NEXT_VERSION=1)

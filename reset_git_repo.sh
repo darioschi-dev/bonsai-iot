@@ -7,7 +7,7 @@ mv .git .git.bak
 
 echo "🚀 Inizializzazione nuovo repository Git..."
 git init
-git remote add origin https://github.com/darioschi-dev/bonsai-iot.git
+git remote add origin https://github.com/darioschi-dev/bonsai-firmware.git
 
 echo "🧼 Aggiunta dei file puliti al commit..."
 git add .
