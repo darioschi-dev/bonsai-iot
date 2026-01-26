@@ -25,6 +25,12 @@ static int reconnectAttempts = 0;
 static const unsigned long RECONNECT_BASE_MS = 2000;   // 2s
 static const unsigned long RECONNECT_MAX_MS  = 60000;  // 60s
 
+// ===================== Telemetry Deduplication =====================
+static int lastPublishedHumidity = -1;
+static int lastPublishedBattery = -1;
+static int lastPublishedRssi = -9999;
+static String lastPublishedFirmware = "";
+
 // =======================================================
 // =============== CONFIG MANAGEMENT (NEW API) ===========
 // =======================================================
@@ -298,15 +304,33 @@ void loopMqtt()
     if (timeIsValid())
       publishMqtt(base + "last_seen", String((long long)epochMs()), true);
 
-    publishMqtt(base + "wifi", String(WiFi.RSSI()), false);
+    // Telemetry deduplication: skip publishing unchanged values
+    int currentRssi = WiFi.RSSI();
+    if (currentRssi != lastPublishedRssi) {
+      publishMqtt(base + "wifi", String(currentRssi), false);
+      lastPublishedRssi = currentRssi;
+    }
 
 #ifdef FIRMWARE_VERSION
-    publishMqtt(base + "firmware", FIRMWARE_VERSION, true);
+    String currentFw = String(FIRMWARE_VERSION);
+    if (currentFw != lastPublishedFirmware) {
+      publishMqtt(base + "firmware", FIRMWARE_VERSION, true);
+      lastPublishedFirmware = currentFw;
+    }
 #endif
 
-    publishMqtt(base + "humidity", String(soilPercent), false);
-    publishMqtt(base + "temp", "0", false);
-    publishMqtt(base + "battery", String(analogRead(config.battery_pin)), false);
+    if (soilPercent != lastPublishedHumidity) {
+      publishMqtt(base + "humidity", String(soilPercent), false);
+      lastPublishedHumidity = soilPercent;
+    }
+    
+    publishMqtt(base + "temp", "0", false);  // Always publish temp (placeholder)
+    
+    int currentBattery = analogRead(config.battery_pin);
+    if (currentBattery != lastPublishedBattery) {
+      publishMqtt(base + "battery", String(currentBattery), false);
+      lastPublishedBattery = currentBattery;
+    }
 
     if (pumpController) {
       publishMqtt(base + "pump",

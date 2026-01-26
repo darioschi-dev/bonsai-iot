@@ -76,6 +76,16 @@ static String currentAppVersion() {
 #endif
 }
 
+// ----------------- Dynamic Sleep -----------------
+static unsigned long calculateSleepSeconds() {
+  // Dynamic sleep based on soil moisture to optimize power and responsiveness
+  // Wet soil = long sleep; dry soil = short sleep
+  if (soilPercent > 70) return 3600;  // 1 hour - very wet, no irrigation needed soon
+  if (soilPercent > 50) return 1800;  // 30 min - adequate moisture
+  if (soilPercent > 30) return 900;   // 15 min - getting dry, check more often
+  return 300;  // 5 min - critical dry, monitor closely
+}
+
 // Convert IANA timezone names to POSIX TZ format
 static String ianaToPosixTz(const String& tzName) {
   String tz = tzName;
@@ -404,6 +414,14 @@ void loop() {
     loopMqtt();
   }
 
+  // Watchdog health reporting via MQTT (every 30s)
+  static unsigned long lastHealthPublish = 0;
+  if (mqttReady && (millis() - lastHealthPublish > 30000)) {
+    String healthTopic = "bonsai/" + deviceId + "/health/watchdog";
+    publishMqtt(healthTopic, String(millis()), false);
+    lastHealthPublish = millis();
+  }
+
   // Periodic soil measurement using configured interval
   static unsigned long lastSoilReadMs = 0;
   unsigned long intervalMs = (unsigned long)config.measurement_interval * 1000UL;
@@ -463,7 +481,18 @@ void loop() {
         pumpStateAfterWakeup = false; // do NOT resume pump after wake
       }
       
-      esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
+      // Use dynamic sleep duration or config fallback
+      unsigned long sleepSeconds = 0;
+      if (config.sleep_hours > 0) {
+        // Use configured sleep_hours if set
+        sleepSeconds = config.sleep_hours * 3600ULL;
+      } else {
+        // Use dynamic sleep based on soil moisture
+        sleepSeconds = calculateSleepSeconds();
+        debugLog("SLEEP: dynamic duration " + String(sleepSeconds) + "s (soil=" + String(soilPercent) + "%)");
+      }
+      
+      esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000ULL);
       delay(100);
       esp_deep_sleep_start();
     }
