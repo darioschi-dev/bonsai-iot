@@ -403,6 +403,37 @@ void loop() {
   if (mqttReady) {
     loopMqtt();
   }
+
+  // Periodic soil measurement using configured interval
+  static unsigned long lastSoilReadMs = 0;
+  unsigned long intervalMs = (unsigned long)config.measurement_interval * 1000UL;
+  if (intervalMs == 0) {
+    // Fallback: read every 60s if not configured
+    intervalMs = 60000UL;
+  }
+  if (millis() - lastSoilReadMs >= intervalMs) {
+    int previousPercent = soilPercent;
+    int newPercent = readSoil();
+    lastSoilReadMs = millis();
+
+    // Publish updated soil value over MQTT
+    if (mqttReady) {
+      String topic = "bonsai/" + deviceId + "/status/humidity";
+      mqttClient.publish(topic.c_str(), String(newPercent).c_str(), false);
+    }
+
+    // Re-evaluate pump activation on threshold crossing
+    if (config.use_pump) {
+      if (newPercent < config.moisture_threshold) {
+        debugLog("SOIL periodic: dry – activating pump");
+        turnOnPump();
+        delay(config.pump_duration * 1000);
+        turnOffPump();
+      } else if (previousPercent < config.moisture_threshold && newPercent >= config.moisture_threshold) {
+        debugLog("SOIL periodic: recovered – pump remains off");
+      }
+    }
+  }
   loopTelnetLogger();
   esp_task_wdt_reset();
 
