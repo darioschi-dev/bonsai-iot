@@ -453,10 +453,11 @@ void loop() {
     if (elapsed >= timeoutMs) {
       debugLog("SLEEP: timeout reached (" + String(elapsed) + "ms)");
       
-      // Save pump state before sleep
-      if (pumpController) {
-        pumpStateAfterWakeup = pumpController->getState();
-        debugLog("PUMP: saving state " + String(pumpStateAfterWakeup ? "ON" : "OFF") + " before sleep");
+      // Safety: ensure pump is OFF before entering deep sleep
+      if (pumpController && pumpController->getState()) {
+        debugLog("PUMP: was ON before sleep — turning OFF for safety");
+        turnOffPump();  // publish retained OFF and set pin LOW/HIGH accordingly
+        pumpStateAfterWakeup = false; // do NOT resume pump after wake
       }
       
       esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
