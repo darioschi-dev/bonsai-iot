@@ -149,15 +149,44 @@ void setup_wifi() {
   Serial.print("Connecting to WiFi: ");
   Serial.println(config.wifi_ssid);
 
+  // WiFi connection with timeout to prevent infinite loop
   WiFi.begin(config.wifi_ssid.c_str(), config.wifi_password.c_str());
-  while (WiFi.status() != WL_CONNECTED) {
+  
+  const unsigned long WIFI_TIMEOUT_MS = 60000; // 60 seconds
+  unsigned long startAttemptTime = millis();
+  
+  while (WiFi.status() != WL_CONNECTED && 
+         (millis() - startAttemptTime) < WIFI_TIMEOUT_MS) {
     delay(500);
     Serial.print(".");
   }
 
-  Serial.println("\nWiFi connected");
-  Serial.println(WiFi.localIP());
-  debugLog("WIFI: connected");
+  // Check if connection successful
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected");
+    Serial.println(WiFi.localIP());
+    debugLog("WIFI: connected");
+  } else {
+    // Connection failed - enter fallback AP mode
+    Serial.println("\nWiFi connection TIMEOUT after 60s");
+    debugLog("WIFI: timeout, starting AP mode");
+    
+    // Start Access Point
+    String apSSID = "Bonsai-Setup-" + deviceId;
+    WiFi.softAP(apSSID.c_str(), "bonsai123"); // Simple password for setup
+    
+    IPAddress apIP = WiFi.softAPIP();
+    Serial.println("AP Mode started");
+    Serial.print("SSID: ");
+    Serial.println(apSSID);
+    Serial.print("IP: ");
+    Serial.println(apIP);
+    debugLog("AP: " + apSSID + " @ " + apIP.toString());
+    
+    // Device continues in AP mode - web UI should still work
+    // User can connect and configure via existing webserver
+    return; // Skip NTP/timezone setup in AP mode
+  }
 
   Logger::begin(SYSLOG_HOST, SYSLOG_PORT, SYSLOG_HOSTNAME, SYSLOG_APP, LOG_INFO);
 
