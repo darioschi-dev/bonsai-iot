@@ -450,7 +450,10 @@ void loop() {
       timeoutMs = 2000;  // Minimo 2 secondi per inizializzazione servizi
     }
     
-    if (elapsed >= timeoutMs) {
+    // Do not enter deep sleep while pump is actively running
+    if (pumpController && pumpController->getState()) {
+      debugLog("SLEEP: deferred — pump is ON");
+    } else if (elapsed >= timeoutMs) {
       debugLog("SLEEP: timeout reached (" + String(elapsed) + "ms)");
       
       // Safety: ensure pump is OFF before entering deep sleep
