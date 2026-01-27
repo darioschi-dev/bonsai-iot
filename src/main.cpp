@@ -176,6 +176,10 @@ void setup_wifi() {
     Serial.println("\nWiFi connected");
     Serial.println(WiFi.localIP());
     debugLog("WIFI: connected");
+    
+    // Enable WiFi power save to reduce consumption when idle
+    WiFi.setSleep(WIFI_PS_MIN_MODEM);
+    debugLog("WIFI: power save enabled");
   } else {
     // Connection failed - enter fallback AP mode
     Serial.println("\nWiFi connection TIMEOUT after 60s");
