@@ -52,10 +52,16 @@ int FirmwareUpdateStrategy::compareVersions_(const String& a, const String& b)
 bool FirmwareUpdateStrategy::httpGetToString_(const String& url, String& out)
 {
     HTTPClient http;
-    if (!http.begin(url)) return false;
+    http.setTimeout(10000); // 10s timeout to prevent hanging
+    
+    if (!http.begin(url)) {
+        Serial.println("[FW] HTTP begin failed");
+        return false;
+    }
 
     int code = http.GET();
     if (code != HTTP_CODE_OK) {
+        Serial.printf("[FW] HTTP GET failed: %d\n", code);
         http.end();
         return false;
     }
@@ -117,6 +123,7 @@ bool FirmwareUpdateStrategy::downloadAndFlash_(const String& url, const String& 
 {
     WiFiClient client;
     HTTPClient http;
+    http.setTimeout(30000); // 30s timeout for firmware download
 
     if (!http.begin(client, url)) {
         Serial.println("[FW] begin() fallito");
