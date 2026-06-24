@@ -118,6 +118,25 @@ Modifica `data/config.example.json` (e versioni `.prod` / `.test`) per:
 - Pin GPIO per LED, sensore, pompa
 - Debug e durata deep sleep
 
+### 🔋 Gestione energetica e ottimizzazioni
+
+- **Deep sleep dinamico**: Se `sleep_hours=0`, il firmware calcola automaticamente la durata del sonno in base all'umidità del suolo:
+  - Umidità >70%: 1 ora
+  - Umidità >50%: 30 minuti
+  - Umidità >30%: 15 minuti
+  - Umidità ≤30%: 5 minuti
+- **WiFi power save**: Modalità `WIFI_PS_MIN_MODEM` abilitata automaticamente dopo connessione per ridurre il consumo in idle
+- **Sicurezza pompa**: La pompa viene forzata a OFF prima di ogni deep sleep e non viene mai riattivata al risveglio (richiede nuova valutazione dell'umidità)
+
+### 🛡️ Robustezza e affidabilità
+
+- **WiFi timeout**: Connessione WiFi con timeout di 60 secondi; in caso di fallimento, il dispositivo attiva un AP "Bonsai-Setup-{deviceId}" (password: `bonsai123`) per configurazione manuale
+- **MQTT backoff esponenziale**: Riconnessione al broker con backoff: 2s → 4s → 8s → ... → 60s max per evitare storm di riconnessioni
+- **Lettura periodica sensore**: Il sensore di umidità viene letto periodicamente in base a `measurement_interval` (non solo all'avvio), con ripubblicazione MQTT e rivalutazione stato pompa
+- **Deduplica telemetria**: I valori di umidità, batteria, RSSI e firmware vengono pubblicati su MQTT solo quando cambiano rispetto all'ultimo invio
+- **Watchdog health**: Ogni 30 secondi viene pubblicato un messaggio di heartbeat su `bonsai/{deviceId}/health/watchdog` per monitoraggio esterno
+- **OTA timeout**: Le richieste HTTP per manifest e firmware OTA hanno timeout (10s manifest, 30s download) per evitare boot hang in caso di problemi di rete
+
 ---
 
 ## 🧪 Simulazione con Wokwi CLI

@@ -76,6 +76,16 @@ static String currentAppVersion() {
 #endif
 }
 
+// ----------------- Dynamic Sleep -----------------
+static unsigned long calculateSleepSeconds() {
+  // Dynamic sleep based on soil moisture to optimize power and responsiveness
+  // Wet soil = long sleep; dry soil = short sleep
+  if (soilPercent > 70) return 3600;  // 1 hour - very wet, no irrigation needed soon
+  if (soilPercent > 50) return 1800;  // 30 min - adequate moisture
+  if (soilPercent > 30) return 900;   // 15 min - getting dry, check more often
+  return 300;  // 5 min - critical dry, monitor closely
+}
+
 // Convert IANA timezone names to POSIX TZ format
 static String ianaToPosixTz(const String& tzName) {
   String tz = tzName;
@@ -149,15 +159,48 @@ void setup_wifi() {
   Serial.print("Connecting to WiFi: ");
   Serial.println(config.wifi_ssid);
 
+  // WiFi connection with timeout to prevent infinite loop
   WiFi.begin(config.wifi_ssid.c_str(), config.wifi_password.c_str());
-  while (WiFi.status() != WL_CONNECTED) {
+  
+  const unsigned long WIFI_TIMEOUT_MS = 60000; // 60 seconds
+  unsigned long startAttemptTime = millis();
+  
+  while (WiFi.status() != WL_CONNECTED && 
+         (millis() - startAttemptTime) < WIFI_TIMEOUT_MS) {
     delay(500);
     Serial.print(".");
   }
 
-  Serial.println("\nWiFi connected");
-  Serial.println(WiFi.localIP());
-  debugLog("WIFI: connected");
+  // Check if connection successful
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected");
+    Serial.println(WiFi.localIP());
+    debugLog("WIFI: connected");
+    
+    // Enable WiFi power save to reduce consumption when idle
+    WiFi.setSleep(WIFI_PS_MIN_MODEM);
+    debugLog("WIFI: power save enabled");
+  } else {
+    // Connection failed - enter fallback AP mode
+    Serial.println("\nWiFi connection TIMEOUT after 60s");
+    debugLog("WIFI: timeout, starting AP mode");
+    
+    // Start Access Point
+    String apSSID = "Bonsai-Setup-" + deviceId;
+    WiFi.softAP(apSSID.c_str(), "bonsai123"); // Simple password for setup
+    
+    IPAddress apIP = WiFi.softAPIP();
+    Serial.println("AP Mode started");
+    Serial.print("SSID: ");
+    Serial.println(apSSID);
+    Serial.print("IP: ");
+    Serial.println(apIP);
+    debugLog("AP: " + apSSID + " @ " + apIP.toString());
+    
+    // Device continues in AP mode - web UI should still work
+    // User can connect and configure via existing webserver
+    return; // Skip NTP/timezone setup in AP mode
+  }
 
   Logger::begin(SYSLOG_HOST, SYSLOG_PORT, SYSLOG_HOSTNAME, SYSLOG_APP, LOG_INFO);
 
@@ -374,6 +417,45 @@ void loop() {
   if (mqttReady) {
     loopMqtt();
   }
+
+  // Watchdog health reporting via MQTT (every 30s)
+  static unsigned long lastHealthPublish = 0;
+  if (mqttReady && (millis() - lastHealthPublish > 30000)) {
+    String healthTopic = "bonsai/" + deviceId + "/health/watchdog";
+    publishMqtt(healthTopic, String(millis()), false);
+    lastHealthPublish = millis();
+  }
+
+  // Periodic soil measurement using configured interval
+  static unsigned long lastSoilReadMs = 0;
+  unsigned long intervalMs = (unsigned long)config.measurement_interval * 1000UL;
+  if (intervalMs == 0) {
+    // Fallback: read every 60s if not configured
+    intervalMs = 60000UL;
+  }
+  if (millis() - lastSoilReadMs >= intervalMs) {
+    int previousPercent = soilPercent;
+    int newPercent = readSoil();
+    lastSoilReadMs = millis();
+
+    // Publish updated soil value over MQTT
+    if (mqttReady) {
+      String topic = "bonsai/" + deviceId + "/status/humidity";
+      mqttClient.publish(topic.c_str(), String(newPercent).c_str(), false);
+    }
+
+    // Re-evaluate pump activation on threshold crossing
+    if (config.use_pump) {
+      if (newPercent < config.moisture_threshold) {
+        debugLog("SOIL periodic: dry – activating pump");
+        turnOnPump();
+        delay(config.pump_duration * 1000);
+        turnOffPump();
+      } else if (previousPercent < config.moisture_threshold && newPercent >= config.moisture_threshold) {
+        debugLog("SOIL periodic: recovered – pump remains off");
+      }
+    }
+  }
   loopTelnetLogger();
   esp_task_wdt_reset();
 
@@ -390,16 +472,31 @@ void loop() {
       timeoutMs = 2000;  // Minimo 2 secondi per inizializzazione servizi
     }
     
-    if (elapsed >= timeoutMs) {
+    // Do not enter deep sleep while pump is actively running
+    if (pumpController && pumpController->getState()) {
+      debugLog("SLEEP: deferred — pump is ON");
+    } else if (elapsed >= timeoutMs) {
       debugLog("SLEEP: timeout reached (" + String(elapsed) + "ms)");
       
-      // Save pump state before sleep
-      if (pumpController) {
-        pumpStateAfterWakeup = pumpController->getState();
-        debugLog("PUMP: saving state " + String(pumpStateAfterWakeup ? "ON" : "OFF") + " before sleep");
+      // Safety: ensure pump is OFF before entering deep sleep
+      if (pumpController && pumpController->getState()) {
+        debugLog("PUMP: was ON before sleep — turning OFF for safety");
+        turnOffPump();  // publish retained OFF and set pin LOW/HIGH accordingly
+        pumpStateAfterWakeup = false; // do NOT resume pump after wake
       }
       
-      esp_sleep_enable_timer_wakeup(config.sleep_hours * 3600ULL * 1000000ULL);
+      // Use dynamic sleep duration or config fallback
+      unsigned long sleepSeconds = 0;
+      if (config.sleep_hours > 0) {
+        // Use configured sleep_hours if set
+        sleepSeconds = config.sleep_hours * 3600ULL;
+      } else {
+        // Use dynamic sleep based on soil moisture
+        sleepSeconds = calculateSleepSeconds();
+        debugLog("SLEEP: dynamic duration " + String(sleepSeconds) + "s (soil=" + String(soilPercent) + "%)");
+      }
+      
+      esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000ULL);
       delay(100);
       esp_deep_sleep_start();
     }
